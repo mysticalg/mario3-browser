@@ -37,8 +37,38 @@ try{
   check('keyboard pause freezes game',(await snapshot()).frame===pause.frame&&(await snapshot()).paused);
   await page.click('#resume-btn');check('resume button unpauses',!(await snapshot()).paused);
   await page.keyboard.press('KeyR');await advance(30);check('restart resets position and lives',(await snapshot()).player.x===24&&(await snapshot()).lives===3);
-  await page.click('#sound-btn');check('sound button enables audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='true');
+  await page.click('#sound-btn');await page.click('#sound-btn');check('sound button enables audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='true');
+  await page.waitForTimeout(300);
+  const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
+  check('audio context unlocked and layered music scheduled',audioState.state==='running'&&audioState.scheduled>5);
+  const renderedAudio=await page.evaluate(async()=>{
+    const {GameAudio}=await import('./audio.js?v=0.4.0');const results=[];
+    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear']){
+      const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;a.effect(name);
+      const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;
+      for(const sample of data){energy+=sample*sample;peak=Math.max(peak,Math.abs(sample));}
+      results.push({name,rms:Math.sqrt(energy/data.length),peak});
+    }
+    return results;
+  });
+  check('all 13 sound effects render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
+  await page.keyboard.press('KeyM');check('music can be muted independently',!(await page.evaluate(()=>window.__test.audio.snapshot())).music);
+  await page.keyboard.press('KeyM');check('music can be enabled again',(await page.evaluate(()=>window.__test.audio.snapshot())).music);
+  await page.evaluate(()=>window.__test.game.sound('coin'));
+  check('game events route to distinct audio effects',(await page.evaluate(()=>window.__test.audio.snapshot())).lastEffect==='coin');
+  await page.keyboard.press('KeyP');await page.waitForTimeout(30);
+  check('pause silences music voices',(await page.evaluate(()=>window.__test.audio.snapshot())).voices===0);
+  await page.keyboard.press('KeyP');
   await page.click('#sound-btn');check('sound button mutes audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='false');
+  await seed(()=>{
+    const g=window.__test.game;g.restart(false);g.enemies.forEach(e=>e.state=0);Object.assign(g.enemies[0],{kind:2,state:2,x:40,y:192,h:16,vx:0,vy:0,cooldown:0});
+  });
+  await page.keyboard.down('ShiftLeft');await page.keyboard.down('ArrowRight');await advance(180);await page.keyboard.up('ArrowRight');
+  check('run button picks up a stationary shell',(await snapshot()).player.carrying===0);
+  await page.screenshot({path:path.join(output,'carrying-shell.png'),fullPage:true});
+  await page.keyboard.up('ShiftLeft');await advance(30);
+  check('releasing run throws the shell',(await snapshot()).player.carrying===-1&&(await snapshot()).events.some(e=>e.type==='shell-thrown'));
+  await page.keyboard.press('KeyR');await advance(30);
   await page.click('#fullscreen-btn');await page.waitForFunction(()=>!!document.fullscreenElement);
   const fullBox=await page.locator('canvas').boundingBox();
   check('fullscreen uses the full available height',fullBox.height>=890);

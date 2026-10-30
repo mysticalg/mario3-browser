@@ -1,7 +1,8 @@
-import {Game,STEP_MS,clamp} from './engine.js?v=0.3.1';
-import {ControllerInput} from './input.js?v=0.3.1';
-import {pixelText} from './pixel-font.js?v=0.3.1';
-const VERSION='0.3.1';
+import {GameAudio} from './audio.js?v=0.4.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.4.0';
+import {ControllerInput} from './input.js?v=0.4.0';
+import {pixelText} from './pixel-font.js?v=0.4.0';
+const VERSION='0.4.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -10,23 +11,14 @@ const keyboard=new Set(),touch=new Set();
 const controllers=new ControllerInput();
 const touchControls=document.querySelector('.touch-controls');
 const touchHome=document.createComment('touch-controls-home');touchControls.before(touchHome);
-let game,world,atlas,started=false,soundOn=false,audio=null,manualStepping=false,accumulator=0,lastTime=0;
+let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStepping=false,accumulator=0,lastTime=0;
 let padState=null,controllerLabel='';
 let previousVisual=null,lastPresentation=null,uiStamp='';
 const dynamicCells=new Set();
 const testMode=new URLSearchParams(location.search).has('test');
 
-function tone(note,duration){
-  if(!soundOn||!audio||audio.state!=='running')return;
-  const oscillator=audio.createOscillator(),gain=audio.createGain(),time=audio.currentTime;
-  oscillator.type='square';oscillator.frequency.setValueAtTime(110*Math.pow(2,(note-80)/48),time);
-  gain.gain.setValueAtTime(.035,time);gain.gain.exponentialRampToValueAtTime(.0001,time+duration);
-  oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(time);oscillator.stop(time+duration);
-}
-function unlockAudio(){
-  if(!soundOn)return;
-  try{audio ||= new (window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{soundOn=false;}
-}
+function tone(name){audio.effect(name);}
+function unlockAudio(){audio.enable(soundOn);}
 function focusGame(){canvas.focus({preventScroll:true});}
 function start(auto=false){
   if(!game)return;
@@ -176,6 +168,7 @@ window.addEventListener('keydown',event=>{
   if(event.code==='KeyP'||(event.code==='Escape'&&!document.fullscreenElement)){event.preventDefault();pause();}
   if(event.code==='KeyR'){event.preventDefault();start(false);}
   if(event.code==='KeyF'){event.preventDefault();fullscreen();}
+  if(event.code==='KeyM'){event.preventDefault();document.getElementById('music-btn').click();}
 });
 window.addEventListener('keyup',event=>keyboard.delete(event.code));
 window.addEventListener('blur',()=>{
@@ -207,6 +200,7 @@ document.addEventListener('fullscreenchange',()=>{
   else touchHome.parentNode.insertBefore(touchControls,touchHome.nextSibling);
   focusGame();
 });
+$('music-btn').addEventListener('click',()=>{audio.music=!audio.music;audio.stop();$('music-btn').setAttribute('aria-pressed',String(audio.music));$('music-btn').setAttribute('aria-label',audio.music?'Mute music':'Enable music');$('music-btn').querySelector('span').textContent=audio.music?'Music on':'Music off';focusGame();});
 $('sound-btn').addEventListener('click',()=>{
   soundOn=!soundOn;unlockAudio();$('sound-btn').setAttribute('aria-pressed',String(soundOn));
   $('sound-btn').setAttribute('aria-label',soundOn?'Mute sound':'Enable sound');$('sound-btn').querySelector('span').textContent=soundOn?'Sound on':'Sound off';focusGame();
@@ -217,6 +211,7 @@ function loop(now){
   if(game){
     if(!started||game.paused)pollController();
     if(!manualStepping){accumulator+=elapsed;while(accumulator+1e-7>=STEP_MS){accumulator=Math.max(0,accumulator-STEP_MS);step();}}
+    audio.update(started&&!game.paused&&game.state==='playing',game.clock<100);
     render(manualStepping||game.paused||!started?1:clamp(accumulator/STEP_MS,0,1));
   }
   requestAnimationFrame(loop);
@@ -226,10 +221,10 @@ window.advanceTime=ms=>{
   while(accumulator+1e-7>=STEP_MS){accumulator=Math.max(0,accumulator-STEP_MS);if(game)step();}
   render();
 };
-window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
+window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.3.1',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png')
+  fetch(new URL('./assets/level.json?v=0.4.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png')
 ]).then(([level,background,sprites])=>{
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;
   const backgroundCtx=scenery.getContext('2d');backgroundCtx.drawImage(background,0,0);
@@ -238,7 +233,7 @@ window.gameReady=Promise.all([
     dynamicCells.add(off);backgroundCtx.fillRect((off%256)*16,Math.floor(off/256)*16,16,16);
   }
   world=scenery;atlas=sprites;game=new Game(level,tone);$('loading').hidden=true;
-  if(testMode)window.__test={game,start,render,controllers,presentation:()=>lastPresentation};
+  if(testMode)window.__test={game,start,render,controllers,audio,presentation:()=>lastPresentation};
   render();return true;
 }).catch(error=>{
   $('loading').textContent=`Unable to load the game. ${error.message}. Please reload.`;console.error(error);return false;

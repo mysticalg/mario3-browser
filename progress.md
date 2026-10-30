@@ -29,3 +29,15 @@ stealing and missing touch controls/exit button in fullscreen. Added versioned
 imports/assets to prevent a cached engine being mixed with a new renderer.
 31 engine tests and 40 browser interaction checks pass locally. Protected preview
 still completes the course; it now brakes before landing near pits after high jumps.
+
+0.4.0: User requested closer SMB3 play plus SFX and music. Added gradual acceleration
+and ground friction, conserved airborne momentum, speed-dependent jump launch,
+duck slides, held-jump stomp bounce, airborne stomp chains, shell carry/throw and
+100-coin lives. Replaced numeric beeps with named layered sound effects and a new
+original chiptune loop (not a transcription of the Nintendo soundtrack). Added
+independent music toggle/M shortcut, hurry tempo, gesture unlock, pause/mute.
+36 engine and 48 local browser checks pass, with offline rendering of all 13 SFX
+checking nonzero RMS/no clipping, runtime scheduling, pause/mute and carry/throw.
+Ran the unmodified skill Playwright client and inspected gameplay, carried shell,
+desktop and mobile screenshots. No console errors. Remaining: original soundtrack,
+bonus rooms, suits, world map, shell carrying poses, more exact NES physics.

@@ -35,8 +35,9 @@ Controllers with custom/non-standard mappings may need configuration in the OS.
 
 The **protected demo** ignores enemy damage and runs automatically. Move or jump
 to take manual control. Manual play uses normal damage, lives and respawning.
-Sound effects are optional and enabled by the Sound button. There is no original
-soundtrack in this build. The game pauses when the tab loses focus.
+Sound starts after Play. The Sound button mutes all audio; the Music button or M
+toggles music separately. The looping chiptune arrangement is newly composed for
+this demo, not the original Nintendo soundtrack. The game pauses when the tab loses focus.
 
 ## Included
 
@@ -111,3 +112,20 @@ This is an unofficial prototype, with no affiliation or endorsement.
 
 The MIT license in `LICENSE` applies only to the newly written browser code;
 it grants no rights to Nintendo artwork, characters or other original game material.
+
+## 0.4.0 gameplay and audio
+
+Momentum now persists in the air, ground friction is gradual, running increases
+jump height, and ducking brakes into a slide. Hold Jump for a higher enemy bounce;
+consecutive airborne stomps build a score combo. Hold Run against a stationary
+shell to carry it, then release Run to throw. Every 100 coins grants a life.
+
+Added two pulse voices, triangle bass and noise percussion for looping music,
+plus distinct jump, coin, bump, brick, stomp, kick, emergence, growth, extra-life,
+shrink, death and course-clear effects. Music speeds up below 100 seconds.
+Audio unlocks with a player gesture and stops on pause, blur and mute.
+
+Validation: 36 engine checks and 48 browser checks, including rendered audio
+waveforms, music scheduling/mute/pause, shell carry/throw, keyboard, simulated
+standard controller, mobile touch and fullscreen. Physical controller hardware
+and speaker playback remain user-side checks.

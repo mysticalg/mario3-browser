@@ -14,7 +14,7 @@ test('holding jump increases jump height and lands again',()=>{
   assert.ok(ay<by-8);assert.equal(a.player.y,192);assert.equal(a.player.grounded,true);
 });
 test('movement selects corrected left and right sprite facing',()=>{const g=fixture();steps(g,6,{right:true});assert.ok(g.player.x>24);assert.equal(g.player.facing,'right');steps(g,12,{left:true});assert.ok(g.player.vx<0);assert.equal(g.player.facing,'left');});
-test('running is faster than walking',()=>{const walk=fixture(),run=fixture();steps(walk,20,{right:true});steps(run,20,{right:true,run:true});assert.ok(run.player.x>walk.player.x+10);});
+test('running is faster than walking',()=>{const walk=fixture(),run=fixture();steps(walk,30,{right:true});steps(run,30,{right:true,run:true});assert.ok(run.player.x>walk.player.x+10);});
 test('pipe sides block movement',()=>{const g=fixture();Object.assign(g.player,{x:338,y:176,vx:2.4});steps(g,8,{right:true});assert.ok(g.player.x<352);});
 test('head collision releases a single question-block coin',()=>{const g=fixture();g.patch(10,10,0x63,3);Object.assign(g.player,{x:160,y:176,vy:-4});g.update({jump:true});assert.equal(g.coins,1);assert.equal(g.tiles[2570],0x5f);g.head(10,10);assert.equal(g.coins,1);});
 test('small Mario cannot break a brick; Super Mario can',()=>{const g=fixture();g.patch(10,10,0x67,2);g.head(10,10);assert.equal(g.map[2570],2);g.player.big=true;g.head(10,10);assert.equal(g.map[2570],0);assert.equal(g.tiles[2570],0x80);});
@@ -69,4 +69,24 @@ test('D-pad overrides stick drift and contradictory D-pad directions are neutral
 });
 test('a second controller cannot steal an actively used pad',()=>{
   const a=pad({index:0}),b=pad({index:1});const input=new ControllerInput(()=>[a,b]);b.buttons[0].pressed=true;assert.equal(input.poll().state.index,1);a.buttons[0].pressed=true;assert.equal(input.poll().state.index,1);b.buttons[0].pressed=false;assert.equal(input.poll().state.index,0);
+});
+
+test('airborne momentum persists without steering and running raises jump height',()=>{
+ const g=fixture();Object.assign(g.player,{grounded:false,y:120,vy:-2,vx:3});g.update();assert.equal(g.player.vx,3);
+ const a=fixture(),b=fixture();b.player.vx=3.6;a.update({jump:true});b.update({jump:true,right:true,run:true});assert.ok(b.player.vy<a.player.vy);
+});
+test('ducking brakes into a slide instead of accelerating from rest',()=>{
+ const g=fixture();Object.assign(g.player,{big:true,h:32,y:176,vx:3});g.update({down:true,right:true,run:true});assert.ok(g.player.vx>2&&g.player.vx<3);steps(g,30,{down:true,right:true,run:true});assert.equal(g.player.vx,0);
+});
+test('holding Run picks up a shell and releasing throws it safely',()=>{
+ const g=fixture(),e=g.enemies[0];Object.assign(e,{kind:2,state:2,x:100,y:192,h:16,vx:0,vy:0,cooldown:0});Object.assign(g.player,{x:90,y:192,vy:0,runHeld:true});g.updateEnemies(208);assert.equal(g.player.carrying,0);
+ g.player.x=92;g.updateEnemies(208);assert.equal(e.x,104);assert.equal(g.state,'playing');g.update({});assert.equal(g.player.carrying,-1);assert.equal(e.state,3);assert.equal(e.vx,5);assert.ok(e.cooldown>0);assert.equal(g.state,'playing');
+});
+test('100 coins award one life and a dedicated sound',()=>{
+ const sounds=[],g=new Game(level,name=>sounds.push(name));g.coins=99;g.coin();assert.equal(g.coins,0);assert.equal(g.lives,4);assert.equal(sounds.at(-1),'oneup');
+});
+test('held jump changes stomp bounce and consecutive stomps multiply points',()=>{
+ const g=fixture(),e=g.enemies[0];
+ const hit=hold=>{Object.assign(e,{kind:1,state:1,x:100,y:192,h:16,vx:0,vy:0});Object.assign(g.player,{x:100,y:179,vy:3,oldJump:hold});g.updateEnemies(191);return g.player.vy;};
+ const low=hit(false),high=hit(true);assert.ok(high<low);assert.equal(g.score,300);
 });

@@ -22,6 +22,7 @@ export class Game {
     this.enemies = this.level.objects.map(([kind,x,y]) => ({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     this.state = 'playing';
+    this.player.carrying=-1;this.player.runHeld=false;
     this.deathClock = 0;
     this.winClock = 0;
     this.clock = 300;
@@ -30,6 +31,7 @@ export class Game {
     this.power = null;
     this.popup = null;
     this.card = 0;
+    this.stompChain=0;
     this.effects = [];
     this.bumps = new Map();
   }
@@ -38,7 +40,12 @@ export class Game {
     this.auto=auto; this.paused=false; this.reset();
   }
   event(type) { this.events.push({frame:this.frame,type}); if (this.events.length>24) this.events.shift(); }
-  sound(note, duration=.09) { this.onSound(note,duration); }
+  sound(name, duration=.09) { this.onSound(name,duration); }
+  coin(points=100) {
+    this.coins++;this.score+=points;
+    if(this.coins>=100){this.coins-=100;this.lives++;this.sound('oneup');this.event('extra-life');}
+    else this.sound('coin');
+  }
   cell(x,y) {
     if (x<0 || x>=2816) return 1;
     if (y<0 || y>=256) return 0;
@@ -85,34 +92,41 @@ export class Game {
     const kind=this.map[ty*256+tx], p=this.player;
     if(kind===2) {
       if(p.big) {
-        this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound(80);this.event('brick-broken');
+        this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound('break');this.event('brick-broken');
         for(let q=0;q<4;q++)this.effects.push({kind:'brick',x:tx*16+(q%2)*8,y:ty*16+Math.floor(q/2)*8,vx:q%2?1.5:-1.5,vy:q<2?-4:-2.8,gravity:.2,life:36,q});
       }
-      else {this.sound(64);this.bumps.set(ty*256+tx,{age:0});}
+      else {this.sound('bump');this.bumps.set(ty*256+tx,{age:0});}
     }
     if([3,4,6,7].includes(kind)) {
       this.patch(tx,ty,0x5f,1);
       this.bumps.set(ty*256+tx,{age:0});
-      if(kind===4) { this.power={x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16};this.event('mushroom-released'); }
-      else if(kind===6) { this.lives++;this.pop(tx*16,ty*16,'1UP'); }
+      if(kind===4) { this.sound('appear');this.power={x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16};this.event('mushroom-released'); }
+      else if(kind===6) { this.lives++;this.sound('oneup');this.pop(tx*16,ty*16,'1UP'); }
       else {
-        this.coins++;this.score+=100;this.pop(tx*16,ty*16-14,'100');
+        this.coin();this.pop(tx*16,ty*16-14,'100');
         this.effects.push({kind:'coin',x:tx*16,y:ty*16-12,vx:0,vy:-2.6,gravity:.12,life:26});
       }
-      this.sound(188);
+
     }
+  }
+  releaseShell() {
+    const p=this.player,e=this.enemies[p.carrying];
+    if(e){e.state=3;e.vx=p.facing==='right'?5:-5;e.cooldown=20;e.x=p.x+(p.facing==='right'?15:-15);e.y=p.y+p.h-16;this.sound('kick');this.event('shell-thrown');}
+    p.carrying=-1;
   }
   hurt() {
     const p=this.player;
     if(p.invul>0||this.state!=='playing')return;
-    if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=90;this.sound(76,.18);this.event('shrunk'); }
+    if(p.carrying>=0)this.releaseShell();
+    if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=90;this.sound('shrink');this.event('shrunk'); }
     else this.die();
   }
   die() {
     if(this.state!=='playing')return;
     const p=this.player;
+    if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
-    this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound(72,.25);this.event('life-lost');
+    this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
     const m=this.power,p=this.player;
@@ -134,13 +148,14 @@ export class Game {
         else {p.h=16;p.crouched=true;}
         p.growing=18;p.invul=45;
       }
-      this.pop(p.x,p.y,'SUPER! +1000');this.sound(220,.2);this.event('grew');
+      this.pop(p.x,p.y,'SUPER! +1000');this.sound('powerup');this.event('grew');
     }
   }
   updateEnemies(previousBottom) {
     const p=this.player;
     for(let i=0;i<this.enemies.length;i++){
       const e=this.enemies[i];
+      if(i===p.carrying){e.x=p.x+(p.facing==='right'?12:-12);e.y=p.y+p.h-18;continue;}
       if(e.state<0)e.state++;
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
@@ -161,7 +176,7 @@ export class Game {
       if(this.state==='playing'&&e.state>0&&e.h>0&&p.x+13>e.x+2&&p.x+3<e.x+14&&p.y+p.h>e.y+2&&p.y<e.y+e.h){
         if(e.kind===3)this.hurt();
         else if(previousBottom<=e.y+7&&p.vy>0){
-          p.y=e.y-p.h;p.vy=-4.7;p.grounded=false;p.coyote=0;this.score+=100;this.pop(e.x,e.y-10,'100');this.sound(112);
+          p.y=e.y-p.h;p.vy=p.oldJump?-6.8:-4.7;p.grounded=false;p.coyote=0;const points=[100,200,400,800,1000,2000,4000,8000][Math.min(this.stompChain++,7)];this.score+=points;this.pop(e.x,e.y-10,String(points));this.sound('stomp');
           if(e.kind===4)e.kind=1;
           else if(e.kind===5)e.kind=2;
           else if(e.kind===2){
@@ -170,11 +185,12 @@ export class Game {
             else{e.state=3;e.vx=5;e.cooldown=15;}
           }else e.state=-14;
           this.event('stomp');
-        }else if(e.state===2&&e.cooldown===0){e.state=3;e.vx=p.x>e.x?-5:5;e.cooldown=15;this.score+=50;this.event('shell-kicked');}
+        }else if(e.state===2&&e.cooldown===0&&p.runHeld&&!(p.carrying>=0)){p.carrying=i;e.vx=0;this.event('shell-picked-up');}
+        else if(e.state===2&&e.cooldown===0){e.state=3;e.vx=p.x>e.x?-5:5;e.cooldown=15;this.score+=50;this.sound('kick');this.event('shell-kicked');}
         else if(e.cooldown===0&&p.invul===0)this.hurt();
       }
       if(e.state===3)for(const other of this.enemies){
-        if(other!==e&&other.state===1&&other.kind!==3&&Math.abs(e.x-other.x)<15&&Math.abs(e.y+8-other.y-other.h/2)<20){other.state=-14;this.score+=100;this.event('shell-hit');}
+        if(other!==e&&other.state===1&&other.kind!==3&&Math.abs(e.x-other.x)<15&&Math.abs(e.y+8-other.y-other.h/2)<20){other.state=-14;this.score+=100;this.sound('kick');this.event('shell-hit');}
       }
     }
   }
@@ -235,21 +251,24 @@ export class Game {
     if(++this.timeFrames>=60){this.timeFrames=0;this.clock--;}
     if(this.clock<=0){this.die();return;}
     if(p.growing>0)return;
+    p.runHeld=run;
+    if(p.carrying>=0&&!run)this.releaseShell();
     if(p.big){
       if(down&&p.h===32){p.y+=16;p.h=16;p.crouched=true;}
       if(!down&&p.h===16&&!this.wall(p.x,p.y-16,32)){p.y-=16;p.h=32;p.crouched=false;}
     }
-    const speed=p.crouched?1.2:run?3.6:2.4;
+    const speed=p.crouched?0:run?3.6:2.4;
     const direction=Number(right)-Number(left);
     p.skidding=p.grounded&&direction!==0&&p.vx*direction<-.35;
-    if(direction<0){p.vx=Math.max(p.vx-.3,-speed);p.facing='left';}
-    if(direction>0){p.vx=Math.min(p.vx+.3,speed);p.facing='right';}
-    if(direction===0)p.vx*=.78;
+    const acceleration=p.skidding?.34:.2;
+    if(direction<0&&!p.crouched){p.vx=Math.max(p.vx-acceleration,-speed);p.facing='left';}
+    if(direction>0&&!p.crouched){p.vx=Math.min(p.vx+acceleration,speed);p.facing='right';}
+    if((direction===0||p.crouched)&&p.grounded)p.vx=Math.sign(p.vx)*Math.max(0,Math.abs(p.vx)-.16);
     if(Math.abs(p.vx)<.08)p.vx=0;
     p.coyote=p.grounded?5:Math.max(0,p.coyote-1);
     p.jumpBuffer=jump&&!p.oldJump?6:Math.max(0,p.jumpBuffer-1);
     if(p.jumpBuffer>0&&(p.grounded||p.coyote>0)){
-      p.vy=-6.6;p.grounded=false;p.coyote=0;p.jumpBuffer=0;this.sound(146);
+      p.vy=-(6.2+Math.min(Math.abs(p.vx),3.6)*.16);p.grounded=false;p.coyote=0;p.jumpBuffer=0;this.sound(p.big?'jump-big':'jump');
     }
     if(!jump&&p.vy<-3)p.vy=-3;
     p.oldJump=jump;
@@ -257,7 +276,7 @@ export class Game {
     p.x=clamp(p.x,0,2780);
     const previousBottom=p.y+p.h;
     p.vy=Math.min(p.vy+.3,7);let ny=p.y+p.vy;p.grounded=false;
-    if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h)){ny=Math.floor((ny+p.h)/16)*16-p.h;p.vy=0;p.grounded=true;}
+    if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h)){ny=Math.floor((ny+p.h)/16)*16-p.h;p.vy=0;p.grounded=true;this.stompChain=0;}
     if(p.vy<0&&(this.hard(p.x+2,ny)||this.hard(p.x+13,ny))){
       const ty=Math.floor(ny/16);let tx=Math.floor((p.x+8)/16);
       if(!this.hard(tx*16+8,ny)){tx=Math.floor((p.x+2)/16);if(!this.hard(tx*16+8,ny))tx=Math.floor((p.x+13)/16);}
@@ -265,10 +284,10 @@ export class Game {
     }
     p.y=ny;
     if(p.y>264){this.die();return;}
-    for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coins++;this.score+=50;this.sound(196);this.event('coin');}
+    for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
     this.updatePower();this.updateEnemies(previousBottom);p.travel+=Math.abs(p.vx);
     if(p.x+14>2672&&p.x<2704&&p.y<152&&p.y+p.h>112){
-      this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound(210,.25);this.event('course-clear');
+      this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
   }
   get camera() { return clamp(this.player.x-104,0,2496); }
