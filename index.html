@@ -7,12 +7,12 @@
   <meta name="description" content="Play the browser port of the Mario 3 RISC OS prototype. Keyboard, touch and gamepad controls.">
   <title>Mario 3 · Browser demo</title>
   <link rel="icon" href="assets/icon.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=0.3.1">
 </head>
 <body>
   <main id="app">
     <header class="topbar">
-      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo</p></div></div>
+      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo 0.3.1</p></div></div>
       <div class="tools">
         <button id="sound-btn" aria-label="Enable sound" title="Sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></svg><span>Sound off</span></button>
         <button id="pause-btn" aria-label="Pause game" title="Pause (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg><span>Pause</span></button>
@@ -41,6 +41,7 @@
         </div>
       </div>
       <div class="loading" id="loading">Loading World 1-1…</div>
+      <button id="exit-fullscreen" class="fullscreen-exit" hidden>Exit fullscreen</button>
     </section>
 
     <div class="underbar">
@@ -50,12 +51,12 @@
     <div class="controller-line"><span class="connection-dot" id="pad-dot"></span><span id="pad-status">Controller ready — connect a pad and press a button</span><span id="pad-help">D-pad / stick · A jump · X/B run · Start pause</span></div>
 
     <div class="touch-controls" aria-label="Touch game controls">
-      <div class="touch-direction"><button data-control="left" aria-label="Move left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><button data-control="right" aria-label="Move right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7"/></svg></button></div>
+      <div class="touch-direction"><button data-control="left" aria-label="Move left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><button data-control="down" aria-label="Duck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg></button><button data-control="right" aria-label="Move right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7"/></svg></button></div>
       <div class="touch-actions"><button class="run-control" data-control="run">RUN</button><button class="jump-control" data-control="jump">JUMP</button></div>
     </div>
-    <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Bonus areas, other suits and the original soundtrack are still in development.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs. P pauses, R restarts, F toggles fullscreen. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Audio uses simple generated sound effects, enabled by the Sound button.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
+    <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Bonus areas, other suits and the original soundtrack are still in development.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs, Down ducks. P pauses, R restarts, F toggles fullscreen. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Down ducks, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Audio uses simple generated sound effects, enabled by the Sound button.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
     <footer><span>NES → RISC OS → BROWSER</span><a id="source-link" href="https://github.com/mysticalg/mario3-browser" target="_blank" rel="noreferrer">Source on GitHub ↗</a></footer>
   </main>
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=0.3.1"></script>
 </body>
 </html>

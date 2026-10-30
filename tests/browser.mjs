@@ -26,6 +26,10 @@ try{
   const before=(await snapshot()).player.x;
   await page.keyboard.down('ArrowRight');await advance(180);await page.keyboard.up('ArrowRight');
   check('keyboard right movement and facing',(await snapshot()).player.x>before&&(await snapshot()).player.facing==='right');
+  const interpolation=await page.evaluate(()=>{
+    const t=window.__test;t.render(0);const a=t.presentation().playerX;t.render(1);const b=t.presentation().playerX;t.render(.5);const middle=t.presentation().playerX;t.render(1);return {a,b,middle};
+  });
+  check('presentation interpolates between physics ticks',interpolation.b>interpolation.a&&Math.abs(interpolation.middle-(interpolation.a+interpolation.b)/2)<.001);
   await page.keyboard.down('Space');await advance(210);await page.keyboard.up('Space');
   check('keyboard jump lifts player',(await snapshot()).player.y<180);
   await page.screenshot({path:path.join(output,'keyboard-gameplay.png'),fullPage:true});
@@ -35,6 +39,10 @@ try{
   await page.keyboard.press('KeyR');await advance(30);check('restart resets position and lives',(await snapshot()).player.x===24&&(await snapshot()).lives===3);
   await page.click('#sound-btn');check('sound button enables audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='true');
   await page.click('#sound-btn');check('sound button mutes audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='false');
+  await page.click('#fullscreen-btn');await page.waitForFunction(()=>!!document.fullscreenElement);
+  const fullBox=await page.locator('canvas').boundingBox();
+  check('fullscreen uses the full available height',fullBox.height>=890);
+  await page.click('#exit-fullscreen');await page.waitForFunction(()=>!document.fullscreenElement);
 
   // Real browser Gamepad API consumer, fed a standard-mapped virtual device.
   await seed(()=>{
@@ -70,7 +78,17 @@ try{
   await page.keyboard.down('Space');await advance(30);await page.keyboard.up('Space');
   check('browser head collision releases power-up',(await snapshot()).power?.emerging>0);
   await seed(()=>{const g=window.__test.game;Object.assign(g.power,{x:g.player.x,y:g.player.y,emerging:0,vy:0});});await advance(30);
-  check('browser collection grows Mario',(await snapshot()).player.big&&(await snapshot()).player.h===32);
+  check('growth under a ceiling stays safely crouched',(await snapshot()).player.big&&(await snapshot()).player.h===16&&(await snapshot()).player.crouched);
+  await seed(()=>{const p=window.__test.game.player;p.x=32;p.y=192;p.growing=0;});await advance(30);
+  check('Super Mario stands when the ceiling clears',(await snapshot()).player.h===32&&!(await snapshot()).player.crouched);
+  await page.keyboard.down('ArrowDown');await advance(30);
+  check('keyboard Down ducks without moving the feet',(await snapshot()).player.crouched&&(await snapshot()).player.y===192);
+  await page.keyboard.up('ArrowDown');await advance(30);
+  await seed(()=>{
+    window.__pads=[{index:0,id:'Duck control check',connected:true,axes:[0,0,0,0],buttons:Array.from({length:17},(_,n)=>({pressed:n===13,value:n===13?1:0}))}];
+  });await advance(30);
+  check('controller Down ducks Super Mario',(await snapshot()).player.crouched);
+  await seed(()=>window.__pads=[]);await advance(30);
   await page.screenshot({path:path.join(output,'super-mario.png'),fullPage:true});
   await seed(()=>{const g=window.__test.game;g.player.growing=0;g.player.invul=0;g.hurt();});await advance(30);
   check('browser damage shrinks Mario',!(await snapshot()).player.big&&(await snapshot()).player.invul>0);
@@ -104,6 +122,23 @@ try{
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   check('touch jump lifts player',await mobile.evaluate(()=>window.__test.game.player.y<180));
   await mobile.screenshot({path:path.join(output,'mobile-gameplay.png'),fullPage:true});
+  await mobile.evaluate(()=>window.__test.start(false));
+  const runBox=await mobile.locator('[data-control="run"]').boundingBox();
+  const rightPoint={x:rightBox.x+rightBox.width/2,y:rightBox.y+rightBox.height/2,id:20},runPoint={x:runBox.x+runBox.width/2,y:runBox.y+runBox.height/2,id:21};
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[rightPoint,runPoint]});await mobile.evaluate(()=>window.advanceTime(250));
+  check('simultaneous touch run and direction reach running speed',await mobile.evaluate(()=>window.__test.game.player.vx>3));
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[rightPoint,runPoint,{x:jumpBox.x+jumpBox.width/2,y:jumpBox.y+jumpBox.height/2,id:22}]});
+  await mobile.evaluate(()=>window.advanceTime(150));
+  check('third touch can jump while running',await mobile.evaluate(()=>window.__test.game.player.y<180));
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await mobile.evaluate(()=>window.__test.start(false));
+  await mobile.tap('#fullscreen-btn');await mobile.waitForFunction(()=>!!document.fullscreenElement);
+  check('touch controls remain in fullscreen',await mobile.evaluate(()=>document.fullscreenElement.contains(document.querySelector('.touch-controls'))));
+  await mobile.screenshot({path:path.join(output,'mobile-fullscreen.png')});
+  await mobile.tap('#exit-fullscreen');await mobile.waitForFunction(()=>!document.fullscreenElement);
+  await mobile.setViewportSize({width:320,height:740});
+  check('small phone has no horizontal overflow',await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await mobile.screenshot({path:path.join(output,'small-phone.png'),fullPage:true});
   check('no browser errors',errors.length===0);
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify({url:base,passed:results.length,checks:results,errors},null,2));
   console.log(JSON.stringify({passed:results.length,errors,output}));

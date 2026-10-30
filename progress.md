@@ -19,3 +19,13 @@ over from the demo. No new game art or image-generation workflow was needed.
 
 Remaining inherited work: bonus areas, world map, extra suits, original music,
 more faithful enemy behaviour/poses and visual overlap/shadow details.
+
+0.3.1 polish: replaced the inherited 33 Hz/four-pixel scrolling with 60 Hz simulation
+and interpolated, pixel-aligned presentation. Added jump buffering and ledge grace,
+precise horizontal collision alignment, safe crouched growth and ducking, ROM skid/
+death/duck/actual Super Mario jump frames, bitmap text, block bumps, coin pops and
+brick debris. Fixed opposing-input conflicts, D-pad/stick conflicts, active-pad
+stealing and missing touch controls/exit button in fullscreen. Added versioned
+imports/assets to prevent a cached engine being mixed with a new renderer.
+31 engine tests and 40 browser interaction checks pass locally. Protected preview
+still completes the course; it now brakes before landing near pits after high jumps.

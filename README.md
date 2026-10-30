@@ -6,6 +6,16 @@ A browser port of the native RISC OS prototype, using reconstructed World 1-1
 geometry and original ROM-derived artwork. Runs as a static Canvas/JavaScript app.
 No emulator, full NES ROM, account, or server-side service is required to play.
 
+### 0.3.1 — movement and presentation update
+
+- 60 Hz gameplay with interpolated presentation and smooth camera tracking.
+- A short jump buffer and ledge grace period, without holding jump causing repeated jumps.
+- Collision alignment at walls, safe mushroom growth under low ceilings, and ducking.
+- Original ROM skid, duck, death and Super Mario jump poses.
+- Crisp bitmap HUD text, bouncing blocks, coin pops and brick fragments.
+- D-pad priority over stick drift, stable active-controller selection, and touch controls in fullscreen.
+- Versioned assets/modules so returning players get a consistent update.
+
 ## Controls
 
 | Action | Keyboard | Standard gamepad | Touch |
@@ -13,6 +23,7 @@ No emulator, full NES ROM, account, or server-side service is required to play.
 | Move | Arrows or Z / X | D-pad or left stick | Left / right |
 | Jump | Space or Up | A / bottom face button | JUMP |
 | Run | Shift | X or B / left or right face button | RUN |
+| Duck (Super Mario) | Down or S | D-pad / stick down | Down arrow |
 | Pause / resume | P | Start / Menu | Pause button |
 | Restart | R | Select / View | Restart button |
 | Fullscreen | F; Esc exits | — | Fullscreen button |
@@ -78,9 +89,10 @@ No analytics, remote game services, or user accounts are used.
 
 ## Structure
 
-- `engine.js`: deterministic game simulation (30 ms ticks, matching the RISC OS prototype).
+- `engine.js`: deterministic 60 Hz game simulation, refined from the RISC OS prototype.
 - `input.js`: controller mapping, deadzone and button-edge handling.
 - `main.js`: Canvas rendering, keyboard/touch input, menus and generated sound cues.
+- `pixel-font.js`: crisp bitmap HUD lettering.
 - `assets/`: decoded art and reconstructed level data, with no full ROM/program code.
 - `tests/`: engine and browser interaction checks.
 

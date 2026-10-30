@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {Game} from '../engine.js';
+import {Game,STEP_MS} from '../engine.js';
 import {readGamepad,ControllerInput} from '../input.js';
 const level=JSON.parse(fs.readFileSync(new URL('../assets/level.json',import.meta.url)));
 function fixture(){const g=new Game(level);g.enemies.forEach(e=>e.state=0);return g;}
@@ -23,7 +23,7 @@ test('damage shrinks, then immunity prevents a second hit',()=>{const g=fixture(
 test('one-way platforms allow ascent and catch a descent',()=>{const g=fixture();g.patch(10,10,0x51,5);Object.assign(g.player,{x:160,y:176,vy:-4});g.update({jump:true});assert.ok(g.player.y<176);Object.assign(g.player,{y:130,vy:3,grounded:false});steps(g,12,{jump:true});assert.equal(g.player.y,144);assert.equal(g.player.grounded,true);});
 test('stomping Goomba defeats it and bounces Mario',()=>{const g=fixture();const e=g.enemies[0];Object.assign(e,{kind:1,state:1,x:100,y:192,h:16,vx:0,vy:0});Object.assign(g.player,{x:100,y:179,vy:3});g.updateEnemies(191);assert.ok(e.state<0);assert.ok(g.player.vy<0);assert.equal(g.score,100);});
 test('Koopa stomp creates a shell that can be kicked',()=>{const g=fixture();const e=g.enemies[0];Object.assign(e,{kind:2,state:1,x:100,y:176,h:32,vx:0,vy:0});Object.assign(g.player,{x:100,y:164,vy:3});g.updateEnemies(175);assert.equal(e.state,2);assert.equal(e.h,16);Object.assign(g.player,{x:90,y:192,vy:0});e.cooldown=0;g.updateEnemies(208);assert.equal(e.state,3);assert.ok(e.vx>0);});
-test('collecting a coin updates score and cannot repeat',()=>{const g=fixture();g.collectibles=[{x:24,y:176,got:false}];g.update();assert.equal(g.coins,1);assert.equal(g.score,50);steps(g,5);assert.equal(g.coins,1);});
+test('collecting a coin updates score and cannot repeat',()=>{const g=fixture();g.collectibles=[{x:24,y:g.player.y,got:false}];g.update();assert.equal(g.coins,1);assert.equal(g.score,50);steps(g,5);assert.equal(g.coins,1);});
 test('death consumes a life and respawns; final death becomes game over',()=>{const g=fixture();g.hurt();assert.equal(g.state,'dying');steps(g,56);assert.equal(g.lives,2);assert.equal(g.state,'playing');g.lives=1;g.hurt();steps(g,56);assert.equal(g.lives,0);assert.equal(g.state,'gameover');});
 test('pits are lethal, including in protected demo',()=>{const g=fixture();g.player.y=270;g.update();assert.equal(g.state,'dying');});
 test('pause freezes physics and restart clears the current run',()=>{const g=fixture();g.paused=true;const before=JSON.stringify(g.snapshot());steps(g,10,{right:true});assert.equal(JSON.stringify(g.snapshot()),before);g.score=400;g.lives=1;g.restart(false);assert.equal(g.score,0);assert.equal(g.lives,3);assert.equal(g.paused,false);});
@@ -32,3 +32,41 @@ test('world boundaries and missing enemies do not produce NaN',()=>{const g=fixt
 function pad(overrides={}){return {index:0,id:'Test standard controller',connected:true,axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0})),...overrides};}
 test('gamepad maps D-pad, analogue stick, jump and run with deadzone',()=>{const p=pad();p.axes[0]=.15;assert.equal(readGamepad(p).right,false);p.axes[0]=.7;assert.equal(readGamepad(p).right,true);p.buttons[0].pressed=true;p.buttons[2].value=1;assert.equal(readGamepad(p).jump,true);assert.equal(readGamepad(p).run,true);p.axes[0]=0;p.buttons[14].pressed=true;assert.equal(readGamepad(p).left,true);});
 test('controller Start and Select are edge-triggered and disconnect releases inputs',()=>{let pads=[pad()];const input=new ControllerInput(()=>pads);input.poll();pads[0].buttons[9].pressed=true;assert.equal(input.poll().edges.start,true);assert.equal(input.poll().edges.start,false);pads[0].buttons[9].pressed=false;input.poll();pads[0].buttons[9].pressed=true;assert.equal(input.poll().edges.start,true);pads[0].buttons[8].pressed=true;assert.equal(input.poll().edges.restart,true);pads=[];assert.equal(input.poll().state,null);});
+test('simulation runs at 60 Hz and game clock follows real seconds',()=>{assert.equal(STEP_MS,1000/60);const g=fixture();steps(g,59);assert.equal(g.clock,300);g.update();assert.equal(g.clock,299);});
+test('camera tracks fractional movement instead of four-pixel jumps',()=>{const g=fixture();g.player.x=200.25;assert.equal(g.camera,96.25);g.player.x+=.5;assert.equal(g.camera,96.75);});
+test('ledge grace permits a late jump but expires',()=>{
+  const g=fixture();g.map.fill(0);g.player.grounded=true;g.update({right:true});assert.equal(g.player.grounded,false);
+  g.update({right:true,jump:true});assert.ok(g.player.vy<0);assert.equal(g.player.jumpBuffer,0);
+  const expired=fixture();expired.map.fill(0);expired.player.grounded=true;steps(expired,8);expired.update({jump:true});assert.ok(expired.player.vy>0);
+});
+test('jump pressed just before landing is buffered; holding does not auto-jump again',()=>{
+  const g=fixture();Object.assign(g.player,{y:188,vy:3,grounded:false});g.update({jump:true});assert.ok(g.player.jumpBuffer>0);g.update({jump:true});g.update({jump:true});assert.ok(g.player.vy<0);
+  steps(g,65,{jump:true});assert.equal(g.player.grounded,true);assert.equal(g.player.y,192);
+});
+test('collisions align Mario flush with either side of a pipe',()=>{
+  const g=fixture();Object.assign(g.player,{x:335,y:176,vx:3.6});steps(g,5,{right:true,run:true});assert.equal(g.player.x,338);assert.equal(g.wall(g.player.x,g.player.y,16),false);
+  Object.assign(g.player,{x:386,y:176,vx:-3.6});steps(g,5,{left:true,run:true});assert.equal(g.player.x,382);assert.equal(g.wall(g.player.x,g.player.y,16),false);
+});
+test('Super Mario can duck, cannot stand into a ceiling, and stands when clear',()=>{
+  const g=fixture();Object.assign(g.player,{big:true,h:32,y:176});g.update({down:true});assert.equal(g.player.h,16);assert.equal(g.player.y,192);assert.equal(g.player.crouched,true);
+  g.patch(1,11,0x79,1);g.update();assert.equal(g.player.h,16);assert.equal(g.player.y,192);
+  g.patch(1,11,0x80,0);g.update();assert.equal(g.player.h,32);assert.equal(g.player.y,176);
+});
+test('mushroom growth under low ceilings does not embed Mario; damage keeps his feet',()=>{
+  const g=fixture();g.patch(1,11,0x79,1);g.power={x:24,y:192,vy:0,dir:0,emerging:0};g.updatePower();assert.equal(g.player.big,true);assert.equal(g.player.crouched,true);assert.equal(g.player.h,16);assert.equal(g.wall(g.player.x,g.player.y,16),false);
+  const feet=g.player.y+g.player.h;g.player.invul=0;g.hurt();assert.equal(g.player.y+g.player.h,feet);
+});
+test('block bumps, coin pops and brick debris are transient feedback',()=>{
+  const g=fixture();g.patch(10,10,0x63,3);g.head(10,10);assert.equal(g.bumps.has(2570),true);assert.ok(g.effects.some(e=>e.kind==='coin'));
+  steps(g,40);assert.equal(g.bumps.size,0);assert.equal(g.effects.length,0);
+  g.patch(10,10,0x67,2);g.player.big=true;g.head(10,10);assert.equal(g.effects.filter(e=>e.kind==='brick').length,4);steps(g,40);assert.equal(g.effects.length,0);
+});
+test('opposing movement buttons are neutral and braking uses a skid pose',()=>{
+  const g=fixture();g.update({left:true,right:true});assert.equal(g.player.vx,0);steps(g,15,{right:true});g.update({left:true});assert.equal(g.player.skidding,true);assert.ok(g.player.vx>0);
+});
+test('D-pad overrides stick drift and contradictory D-pad directions are neutral',()=>{
+  const p=pad();p.axes[0]=.8;p.buttons[14].pressed=true;assert.equal(readGamepad(p).left,true);assert.equal(readGamepad(p).right,false);p.buttons[15].pressed=true;assert.equal(readGamepad(p).left,false);assert.equal(readGamepad(p).right,false);p.buttons[13].pressed=true;assert.equal(readGamepad(p).down,true);
+});
+test('a second controller cannot steal an actively used pad',()=>{
+  const a=pad({index:0}),b=pad({index:1});const input=new ControllerInput(()=>[a,b]);b.buttons[0].pressed=true;assert.equal(input.poll().state.index,1);a.buttons[0].pressed=true;assert.equal(input.poll().state.index,1);b.buttons[0].pressed=false;assert.equal(input.poll().state.index,0);
+});

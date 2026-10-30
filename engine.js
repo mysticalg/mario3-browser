@@ -1,5 +1,5 @@
-// Fixed 30 ms simulation ticks, matching the native RISC OS prototype.
-export const STEP_MS = 30;
+// A fixed 60 Hz simulation, with presentation interpolation between ticks.
+export const STEP_MS = 1000 / 60;
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export class Game {
   constructor(level, onSound = () => {}) {
@@ -20,7 +20,7 @@ export class Game {
     this.patches = new Map();
     this.collectibles = this.level.coins.map(([x,y]) => ({x,y,got:false}));
     this.enemies = this.level.objects.map(([kind,x,y]) => ({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
-    this.player = {x:24,y:176,vx:0,vy:0,h:16,big:false,facing:'right',grounded:false,oldJump:false,invul:0,growing:0,travel:0};
+    this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     this.state = 'playing';
     this.deathClock = 0;
     this.winClock = 0;
@@ -30,6 +30,8 @@ export class Game {
     this.power = null;
     this.popup = null;
     this.card = 0;
+    this.effects = [];
+    this.bumps = new Map();
   }
   restart(auto = this.auto) {
     this.score=0; this.coins=0; this.lives=3; this.frame=0;
@@ -46,6 +48,24 @@ export class Game {
   wall(x,y,h) {
     for (let d=0;d<h;d+=8) if(this.hard(x+2,y+d)||this.hard(x+13,y+d)) return true;
     return this.hard(x+2,y+h-1)||this.hard(x+13,y+h-1);
+  }
+  moveX(body,amount,h=body.h||16) {
+    const next=clamp(body.x+amount,0,2802);
+    if(!this.wall(next,body.y,h)){body.x=next;return false;}
+    let resolved=next;
+    for(let ty=Math.floor(body.y/16);ty<=Math.floor((body.y+h-1)/16);ty++){
+      for(let tx=Math.floor((next+2)/16);tx<=Math.floor((next+13)/16);tx++){
+        if(!this.hard(tx*16+8,ty*16+8))continue;
+        if(amount>0)resolved=Math.min(resolved,tx*16-14);
+        if(amount<0)resolved=Math.max(resolved,(tx+1)*16-2);
+      }
+    }
+    body.x=clamp(resolved,0,2802);return true;
+  }
+  updateEffects(){
+    for(const effect of this.effects){effect.x+=effect.vx;effect.y+=effect.vy;effect.vy+=effect.gravity;effect.life--;}
+    this.effects=this.effects.filter(effect=>effect.life>0);
+    for(const [off,bump] of this.bumps){if(++bump.age>=10)this.bumps.delete(off);}
   }
   floor(x,previous,current) {
     let a=this.cell(x+2,current), b=this.cell(x+13,current);
@@ -64,35 +84,43 @@ export class Game {
     if(tx<0||tx>=256||ty<0||ty>=16)return;
     const kind=this.map[ty*256+tx], p=this.player;
     if(kind===2) {
-      if(p.big) { this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound(80);this.event('brick-broken'); }
-      else this.sound(64);
+      if(p.big) {
+        this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound(80);this.event('brick-broken');
+        for(let q=0;q<4;q++)this.effects.push({kind:'brick',x:tx*16+(q%2)*8,y:ty*16+Math.floor(q/2)*8,vx:q%2?1.5:-1.5,vy:q<2?-4:-2.8,gravity:.2,life:36,q});
+      }
+      else {this.sound(64);this.bumps.set(ty*256+tx,{age:0});}
     }
     if([3,4,6,7].includes(kind)) {
       this.patch(tx,ty,0x5f,1);
+      this.bumps.set(ty*256+tx,{age:0});
       if(kind===4) { this.power={x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16};this.event('mushroom-released'); }
       else if(kind===6) { this.lives++;this.pop(tx*16,ty*16,'1UP'); }
-      else { this.coins++;this.score+=100;this.pop(tx*16,ty*16,'100'); }
+      else {
+        this.coins++;this.score+=100;this.pop(tx*16,ty*16-14,'100');
+        this.effects.push({kind:'coin',x:tx*16,y:ty*16-12,vx:0,vy:-2.6,gravity:.12,life:26});
+      }
       this.sound(188);
     }
   }
   hurt() {
     const p=this.player;
     if(p.invul>0||this.state!=='playing')return;
-    if(p.big) { p.big=false;p.y+=16;p.h=16;p.invul=90;this.sound(76,.18);this.event('shrunk'); }
+    if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=90;this.sound(76,.18);this.event('shrunk'); }
     else this.die();
   }
   die() {
     if(this.state!=='playing')return;
-    this.state='dying';this.deathClock=0;this.player.vy=-5.5;this.player.vx=0;this.sound(72,.25);this.event('life-lost');
+    const p=this.player;
+    if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
+    this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound(72,.25);this.event('life-lost');
   }
   updatePower() {
     const m=this.power,p=this.player;
     if(!m)return;
     if(m.emerging>0) {m.y--;m.emerging--;}
     else {
-      let nx=m.x+m.dir;
-      if(this.wall(nx,m.y,16)){m.dir=-m.dir;nx=m.x+m.dir;}
-      m.x=nx;const previous=m.y+16;
+      if(this.moveX(m,m.dir,16))m.dir=-m.dir;
+      const previous=m.y+16;
       m.vy=Math.min(m.vy+.25,6);let ny=m.y+m.vy;
       if(this.floor(m.x,previous,ny+16)){ny=Math.floor((ny+16)/16)*16-16;m.vy=0;}
       m.y=ny;
@@ -100,7 +128,12 @@ export class Game {
     if(m.y>264){this.power=null;return;}
     if(p.x+14>m.x+1&&p.x+2<m.x+15&&p.y+p.h>m.y+1&&p.y<m.y+16){
       this.power=null;this.score+=1000;
-      if(!p.big){p.big=true;p.y-=16;p.h=32;p.growing=18;p.invul=45;}
+      if(!p.big){
+        p.big=true;
+        if(!this.wall(p.x,p.y-16,32)){p.y-=16;p.h=32;}
+        else {p.h=16;p.crouched=true;}
+        p.growing=18;p.invul=45;
+      }
       this.pop(p.x,p.y,'SUPER! +1000');this.sound(220,.2);this.event('grew');
     }
   }
@@ -118,18 +151,17 @@ export class Game {
         e.y=e.baseY-rise;e.h=rise;
       }else{
         const previous=e.y+e.h;
-        let nx=e.state===2?e.x:e.x+e.vx;
-        if(this.wall(nx,e.y,e.h)){e.vx=-e.vx;nx=e.x+e.vx;}
-        e.x=nx;e.vy=Math.min(e.vy+.3,6);let ny=e.y+e.vy;
+        if(e.state!==2&&this.moveX(e,e.vx))e.vx=-e.vx;
+        e.vy=Math.min(e.vy+.3,6);let ny=e.y+e.vy;
         if(e.vy>=0&&this.floor(e.x,previous,ny+e.h)){
           ny=Math.floor((ny+e.h)/16)*16-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
         }
         e.y=ny;if(e.y>264)e.state=0;
       }
-      if(e.state>0&&e.h>0&&p.x+13>e.x+2&&p.x+3<e.x+14&&p.y+p.h>e.y+2&&p.y<e.y+e.h){
+      if(this.state==='playing'&&e.state>0&&e.h>0&&p.x+13>e.x+2&&p.x+3<e.x+14&&p.y+p.h>e.y+2&&p.y<e.y+e.h){
         if(e.kind===3)this.hurt();
         else if(previousBottom<=e.y+7&&p.vy>0){
-          p.y=e.y-p.h;p.vy=-4.7;p.grounded=false;this.score+=100;this.pop(e.x,e.y-10,'100');this.sound(112);
+          p.y=e.y-p.h;p.vy=-4.7;p.grounded=false;p.coyote=0;this.score+=100;this.pop(e.x,e.y-10,'100');this.sound(112);
           if(e.kind===4)e.kind=1;
           else if(e.kind===5)e.kind=2;
           else if(e.kind===2){
@@ -170,13 +202,21 @@ export class Game {
     if(this.enemies.some(e=>e.kind===3&&e.x>p.x+10&&e.x-p.x<75&&e.h>1)){
       input.right=false;input.left=false;input.jump=false;this.autoHold=0;
     }
+    // Brake before landing in a pit after jumping from a high platform.
+    if(!p.grounded&&p.vy>0&&p.y+p.h<208&&this.cell(p.x+8,212)!==0){
+      const distance=208-p.y-p.h;
+      const landingTicks=(Math.sqrt(p.vy*p.vy+.6*distance)-p.vy)/.3;
+      const landingX=p.x+p.vx*landingTicks;
+      if(this.cell(landingX+8,212)===0)input.right=false;
+    }
     return input;
   }
   update(input={}) {
     if(this.paused)return;
     const controls=this.auto?this.automaticInput():input;
-    const {left=false,right=false,jump=false,run=false}=controls;
+    const {left=false,right=false,jump=false,run=false,down=false}=controls;
     const p=this.player;this.frame++;
+    this.updateEffects();
     if(this.popup&&--this.popup.ticks<=0)this.popup=null;
     else if(this.popup)this.popup.y-=.35;
     if(p.invul>0)p.invul--;
@@ -192,19 +232,29 @@ export class Game {
       if(this.deathClock>55){this.lives--;if(this.lives>0)this.reset();else{this.state='gameover';this.deathClock=0;}}
       return;
     }
-    if(++this.timeFrames>=33){this.timeFrames=0;this.clock--;}
+    if(++this.timeFrames>=60){this.timeFrames=0;this.clock--;}
     if(this.clock<=0){this.die();return;}
     if(p.growing>0)return;
-    const speed=run?3.6:2.4;
-    if(left){p.vx=Math.max(p.vx-.3,-speed);p.facing='left';}
-    if(right){p.vx=Math.min(p.vx+.3,speed);p.facing='right';}
-    if(!left&&!right)p.vx*=.78;
+    if(p.big){
+      if(down&&p.h===32){p.y+=16;p.h=16;p.crouched=true;}
+      if(!down&&p.h===16&&!this.wall(p.x,p.y-16,32)){p.y-=16;p.h=32;p.crouched=false;}
+    }
+    const speed=p.crouched?1.2:run?3.6:2.4;
+    const direction=Number(right)-Number(left);
+    p.skidding=p.grounded&&direction!==0&&p.vx*direction<-.35;
+    if(direction<0){p.vx=Math.max(p.vx-.3,-speed);p.facing='left';}
+    if(direction>0){p.vx=Math.min(p.vx+.3,speed);p.facing='right';}
+    if(direction===0)p.vx*=.78;
     if(Math.abs(p.vx)<.08)p.vx=0;
-    if(p.grounded&&jump&&!p.oldJump){p.vy=-6.6;p.grounded=false;this.sound(146);}
+    p.coyote=p.grounded?5:Math.max(0,p.coyote-1);
+    p.jumpBuffer=jump&&!p.oldJump?6:Math.max(0,p.jumpBuffer-1);
+    if(p.jumpBuffer>0&&(p.grounded||p.coyote>0)){
+      p.vy=-6.6;p.grounded=false;p.coyote=0;p.jumpBuffer=0;this.sound(146);
+    }
     if(!jump&&p.vy<-3)p.vy=-3;
     p.oldJump=jump;
-    const nx=clamp(p.x+p.vx,0,2780);
-    if(this.wall(nx,p.y,p.h))p.vx=0;else p.x=nx;
+    if(this.moveX(p,p.vx))p.vx=0;
+    p.x=clamp(p.x,0,2780);
     const previousBottom=p.y+p.h;
     p.vy=Math.min(p.vy+.3,7);let ny=p.y+p.vy;p.grounded=false;
     if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h)){ny=Math.floor((ny+p.h)/16)*16-p.h;p.vy=0;p.grounded=true;}
@@ -221,7 +271,7 @@ export class Game {
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound(210,.25);this.event('course-clear');
     }
   }
-  get camera() { return Math.floor(clamp(this.player.x-104,0,2496)/4)*4; }
+  get camera() { return clamp(this.player.x-104,0,2496); }
   snapshot() {
     const p=this.player,cam=this.camera;
     const near=entity=>entity.x>=cam-20&&entity.x<cam+340;
@@ -231,7 +281,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      goal:{x:2680,y:120},events:this.events.slice(-5)
+      goal:{x:2680,y:120},effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }
