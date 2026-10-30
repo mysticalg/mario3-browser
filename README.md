@@ -36,8 +36,8 @@ Controllers with custom/non-standard mappings may need configuration in the OS.
 The **protected demo** ignores enemy damage and runs automatically. Move or jump
 to take manual control. Manual play uses normal damage, lives and respawning.
 Sound starts after Play. The Sound button mutes all audio; the Music button or M
-toggles music separately. The looping chiptune arrangement is newly composed for
-this demo, not the original Nintendo soundtrack. The game pauses when the tab loses focus.
+toggles music separately. The music and effects now come from the supplied ROM, rendered through its
+original sound driver and NES audio emulation. The game pauses when the tab loses focus.
 
 ## Included
 
@@ -53,7 +53,7 @@ this demo, not the original Nintendo soundtrack. The game pauses when the tab lo
 
 This is a playable development prototype, **not the complete original game**.
 Physics and enemy behaviour are native reconstructions. The world map, bonus
-pipe transitions, raccoon/fire suits, original music and plant fireballs remain
+pipe transitions, raccoon/fire suits and plant fireballs remain
 unfinished. Leaf blocks currently release mushrooms. Some layout decoration and
 enemy poses differ from the original.
 
@@ -129,3 +129,25 @@ Validation: 36 engine checks and 48 browser checks, including rendered audio
 waveforms, music scheduling/mute/pause, shell carry/throw, keyboard, simulated
 standard controller, mobile touch and fullscreen. Physical controller hardware
 and speaker playback remain user-side checks.
+
+## 0.4.1 original ROM audio
+
+Replaced the 0.4.0 composed tune and synthesized effects with PCM rendered from
+the supplied SMB3 USA Rev 1 ROM. Runs the original sound engine at $A000 with
+MMC3 banks 28/29/31 in JSNES 2.1.0. Includes original overworld music, ROM-tempo
+hurry music, jump, coin, bump, brick, stomp, shell kick, mushroom emergence,
+growth, 1-up, shrink, death, game-over, time-warning and course-clear audio.
+Small and Super Mario use the same original jump effect, as the ROM driver does.
+Intro/loop boundaries are detected from the driver's music-segment transitions.
+Pause/resume retains position; restart replays the intro. M toggles music alone.
+
+`assets/audio/provenance.json` records the input ROM hash, queue requests, output
+hashes and loop boundaries. No ROM or emulator runtime is shipped to players.
+To regenerate locally: `node tools/render-rom-audio.mjs path/to/your-rom.nes`.
+Audio and graphics remain Nintendo content and are excluded from the MIT code
+license. Sound-driver reference: Southbird's SMB3 disassembly (already linked
+above); emulator: https://github.com/bfirsh/jsnes, Apache-2.0.
+
+Validated 36 engine checks and 52 browser checks, including waveform rendering,
+original PCM buffer playback, normal/hurry tracks, loop boundaries and pause
+position. Hardware speaker listening remains a user-side check.

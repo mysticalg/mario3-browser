@@ -1,64 +1,57 @@
-// Small, original chiptune arrangement: two pulse voices, triangle bass and noise.
-// All notes are generated locally; no media downloads or ROM audio engine needed.
-const hz=midi=>440*2**((midi-69)/12);
-const effects={
-  jump:[[60,0,.06],[67,.045,.08],[76,.10,.10]],
-  'jump-big':[[48,0,.06],[55,.045,.08],[64,.10,.10]],
-  coin:[[83,0,.07],[95,.07,.18]],bump:[[43,0,.07]],
-  break:[[36,0,.06],[30,.05,.12]],stomp:[[50,0,.055],[38,.045,.10]],
-  kick:[[64,0,.04],[45,.035,.10]],
-  appear:[[48,0,.07],[52,.07,.07],[55,.14,.07],[60,.21,.12]],
-  powerup:[[60,0,.07],[64,.07,.07],[67,.14,.07],[72,.21,.07],[76,.28,.07],[79,.35,.18]],
-  oneup:[[76,0,.1],[79,.1,.1],[88,.2,.1],[84,.3,.1],[86,.4,.1],[91,.5,.22]],
-  shrink:[[72,0,.06],[67,.06,.06],[60,.12,.06],[48,.18,.15]],
-  death:[[72,0,.15],[71,.18,.1],[67,.3,.14],[64,.47,.14],[60,.64,.35]],
-  clear:[[60,0,.12],[64,.12,.12],[67,.24,.12],[72,.36,.2],[67,.6,.1],[72,.74,.45]]
-};
-const melody=[76,0,79,0,81,79,76,72,74,0,76,0,79,76,72,0,77,0,81,0,84,81,79,77,76,0,79,76,74,72,71,0,
-  72,76,79,0,84,0,81,79,77,0,74,77,81,0,79,77,76,79,84,0,83,81,79,76,74,0,71,74,72,0,0,0];
-const bass=[48,55,48,55,53,60,53,60,48,55,48,55,43,50,43,55];
+// Rendered from the supplied ROM's original 6502 sound driver. See provenance.json.
+const ROOT=new URL('./assets/audio/',import.meta.url);
+let encodedAssets;
+function assets(){
+ return encodedAssets ||= fetch(new URL('provenance.json',ROOT)).then(r=>{if(!r.ok)throw Error('Audio manifest unavailable');return r.json();}).then(async manifest=>{
+ const files=await Promise.all(Object.keys(manifest.files).map(async name=>{const r=await fetch(new URL(name+'.wav',ROOT));if(!r.ok)throw Error(`Missing ROM audio: ${name}`);return [name,await r.arrayBuffer()];}));return {manifest,files};
+ }).catch(error=>{encodedAssets=null;throw error;});
+}
 export class GameAudio {
-  constructor(factory=()=>new (window.AudioContext||window.webkitAudioContext)()){
-    this.factory=factory;this.enabled=false;this.music=true;this.context=null;this.nodes=new Set();this.next=0;this.beat=0;this.active=false;this.scheduled=0;this.lastEffect=null;this.fanfareUntil=0;
-  }
-  async enable(value){
-    this.enabled=value;
-    if(!value){this.stop();return;}
-    try{this.context ||= this.factory();await this.context.resume();}catch{this.enabled=false;}
-  }
-  stop(){for(const node of this.nodes){try{node.stop();}catch{}}this.nodes.clear();this.next=0;}
-  note(midi,start,duration,type='square',volume=.035){
-    if(!this.enabled||!this.context||!midi)return;
-    const c=this.context,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(hz(midi),start);
-    g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(volume,start+.004);g.gain.setValueAtTime(volume*.65,start+duration*.45);g.gain.exponentialRampToValueAtTime(.0001,start+duration);
-    o.connect(g);g.connect(c.destination);this.nodes.add(o);o.onended=()=>{this.nodes.delete(o);o.disconnect();g.disconnect();};o.start(start);o.stop(start+duration+.01);this.scheduled++;
-  }
-  noise(start){
-    const c=this.context,b=c.createBuffer(1,Math.floor(c.sampleRate*.035),c.sampleRate),data=b.getChannelData(0);
-    for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(1-i/data.length)*.025;
-    const n=c.createBufferSource();n.buffer=b;n.connect(c.destination);this.nodes.add(n);n.onended=()=>{this.nodes.delete(n);n.disconnect();};n.start(start);
-  }
-  effect(name){
-    if(!this.enabled||!this.context||(this.context.state!=='running'&&!this.context.startRendering))return;
-    const now=this.context.currentTime;this.lastEffect=name;
-    if(name==='death'||name==='clear'){this.stop();this.fanfareUntil=now+1.4;}
-    for(const [pitch,offset,length] of effects[name]||effects.bump)this.note(pitch,now+offset,length,'square',.055);
-    if(name==='break'||name==='stomp'||name==='kick')this.noise(now);
-  }
-  update(active,hurry=false){
-    if(!active&&this.active&&(!this.context||this.context.currentTime>=this.fanfareUntil))this.stop();this.active=active;
-    if(!active||!this.enabled||!this.music||!this.context||this.context.state!=='running')return;
-    const now=this.context.currentTime;if(now<this.fanfareUntil)return;
-    if(!this.next||this.next<now){this.next=now+.025;}
-    const duration=hurry?.115:.145;
-    while(this.next<now+.12){
-      const i=this.beat%melody.length;
-      this.note(melody[i],this.next,duration*.8,'square',.018);
-      if(i%2===0)this.note(bass[Math.floor(i/4)%bass.length],this.next,duration*1.65,'triangle',.065);
-      if(i%4===2)this.note(melody[i]?melody[i]-12:67,this.next,duration*.5,'square',.009);
-      if(i%2===0)this.noise(this.next);
-      this.next+=duration;this.beat++;
-    }
-  }
-  snapshot(){return {enabled:this.enabled,music:this.music,active:this.active,state:this.context?.state||'locked',scheduled:this.scheduled,lastEffect:this.lastEffect,voices:this.nodes.size};}
+ constructor(factory=()=>new (window.AudioContext||window.webkitAudioContext)()){
+ this.factory=factory;this.enabled=false;this.music=true;this.context=null;this.nodes=new Set();this.buffers=new Map();this.manifest=null;this.loading=null;this.error=null;
+ this.active=false;this.scheduled=0;this.lastEffect=null;this.fanfareUntil=0;this.musicNode=null;this.offset=0;this.track='overworld';this.pending=[];
+ }
+ async load(){
+ if(this.manifest)return;
+ return this.loading ||= assets().then(async({manifest,files})=>{
+ const decoded=await Promise.all(files.map(async([name,bytes])=>[name,await this.context.decodeAudioData(bytes.slice(0))]));
+ this.buffers=new Map(decoded);this.manifest=manifest;this.error=null;
+ const pending=this.pending.splice(0);if(this.enabled)for(const name of pending)this.effect(name);
+ }).catch(error=>{this.loading=null;this.error=error.message;throw error;});
+ }
+ async enable(value){
+ this.enabled=value;if(!value){this.pending=[];this.stop();return;}
+ try{this.context ||= this.factory();await this.context.resume();await this.load();}catch(error){this.error=error.message;}
+ }
+ musicPosition(){
+ if(!this.musicNode)return this.offset;
+ let position=this.offset+this.context.currentTime-this.musicStarted;const loop=this.manifest.files[this.track].loop;
+ if(position>=loop.end)position=loop.start+(position-loop.start)%(loop.end-loop.start);return position;
+ }
+ stopMusic(){
+ if(!this.musicNode)return;this.offset=this.musicPosition();const node=this.musicNode;this.musicNode=null;try{node.stop();}catch{}this.nodes.delete(node);
+ }
+ stop(){this.stopMusic();for(const node of this.nodes){try{node.stop();}catch{}}this.nodes.clear();}
+ reset(){this.stop();this.offset=0;this.track='overworld';this.fanfareUntil=0;this.pending=[];}
+ effect(name){
+ if(!this.enabled||!this.context)return;
+ if(!this.buffers.size){this.pending.push(name);if(this.pending.length>4)this.pending.shift();return;}
+ const buffer=this.buffers.get(name);if(!buffer)return;const now=this.context.currentTime;this.lastEffect=name;
+ if(['death','clear','gameover','warning'].includes(name)){this.stopMusic();this.fanfareUntil=now+buffer.duration;if(name!=='warning')this.offset=0;}
+ const source=this.context.createBufferSource(),gain=this.context.createGain();source.buffer=buffer;gain.gain.value=1.25;
+ source.connect(gain);gain.connect(this.context.destination);this.nodes.add(source);
+ source.onended=()=>{this.nodes.delete(source);source.disconnect();gain.disconnect();};source.start();this.scheduled++;
+ }
+ update(active,hurry=false,paused=false){
+ if(!active){if(paused)this.stop();else this.stopMusic();}this.active=active;
+ if(!active||!this.enabled||!this.music||!this.manifest||this.context.state!=='running')return;
+ const track=hurry?'overworld-hurry':'overworld';
+ if(track!==this.track){this.stopMusic();const old=this.manifest.files[this.track].loop,next=this.manifest.files[track].loop;this.offset=this.offset/old.end*next.end;this.track=track;if(hurry)this.effect('warning');}
+ if(this.musicNode||this.context.currentTime<this.fanfareUntil)return;
+ const source=this.context.createBufferSource(),gain=this.context.createGain(),loop=this.manifest.files[track].loop;
+ source.buffer=this.buffers.get(track);source.loop=true;source.loopStart=loop.start;source.loopEnd=loop.end;gain.gain.value=.65;
+ source.connect(gain);gain.connect(this.context.destination);this.nodes.add(source);this.musicNode=source;this.musicStarted=this.context.currentTime;
+ source.onended=()=>{this.nodes.delete(source);source.disconnect();gain.disconnect();};source.start(0,this.offset);this.scheduled++;
+ }
+ snapshot(){return {source:'original-rom',enabled:this.enabled,music:this.music,active:this.active,state:this.context?.state||'locked',ready:!!this.manifest,error:this.error,scheduled:this.scheduled,lastEffect:this.lastEffect,voices:this.nodes.size,track:this.track,position:this.musicPosition(),loop:this.manifest?.files[this.track]?.loop};}
 }

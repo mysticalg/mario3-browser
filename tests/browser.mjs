@@ -38,27 +38,36 @@ try{
   await page.click('#resume-btn');check('resume button unpauses',!(await snapshot()).paused);
   await page.keyboard.press('KeyR');await advance(30);check('restart resets position and lives',(await snapshot()).player.x===24&&(await snapshot()).lives===3);
   await page.click('#sound-btn');await page.click('#sound-btn');check('sound button enables audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='true');
-  await page.waitForTimeout(300);
+  await page.waitForFunction(()=>window.__test.audio.snapshot().ready);await page.waitForTimeout(100);
   const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
-  check('audio context unlocked and layered music scheduled',audioState.state==='running'&&audioState.scheduled>5);
+  check('original ROM music decoded and playing',audioState.state==='running'&&audioState.scheduled>0&&audioState.source==='original-rom');
   const renderedAudio=await page.evaluate(async()=>{
-    const {GameAudio}=await import('./audio.js?v=0.4.0');const results=[];
-    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear']){
-      const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;a.effect(name);
+    const {GameAudio}=await import('./audio.js?v=0.4.1');const results=[];
+    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning']){
+      const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;await a.load();a.effect(name);
       const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;
       for(const sample of data){energy+=sample*sample;peak=Math.max(peak,Math.abs(sample));}
       results.push({name,rms:Math.sqrt(energy/data.length),peak});
     }
     return results;
   });
-  check('all 13 sound effects render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
+  check('all 15 original effects and fanfares render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
+  const originalMusic=await page.evaluate(()=>{
+    const a=window.__test.audio,b=a.buffers.get('overworld'),h=a.buffers.get('overworld-hurry');
+    return {duration:b.duration,hurryDuration:h.duration,loop:a.manifest.files.overworld.loop,source:a.musicNode?.buffer===b};
+  });
+  check('original soundtrack uses ROM-derived intro and loop boundaries',originalMusic.source&&originalMusic.duration>28&&originalMusic.loop.start>3&&originalMusic.loop.end<=originalMusic.duration+.001);
+  check('hurry music is separately rendered at the ROM fast tempo',originalMusic.hurryDuration<originalMusic.duration-4);
   await page.keyboard.press('KeyM');check('music can be muted independently',!(await page.evaluate(()=>window.__test.audio.snapshot())).music);
   await page.keyboard.press('KeyM');check('music can be enabled again',(await page.evaluate(()=>window.__test.audio.snapshot())).music);
   await page.evaluate(()=>window.__test.game.sound('coin'));
   check('game events route to distinct audio effects',(await page.evaluate(()=>window.__test.audio.snapshot())).lastEffect==='coin');
   await page.keyboard.press('KeyP');await page.waitForTimeout(30);
   check('pause silences music voices',(await page.evaluate(()=>window.__test.audio.snapshot())).voices===0);
+  const pausedMusic=(await page.evaluate(()=>window.__test.audio.snapshot())).position;
+  await page.waitForTimeout(100);check('music position freezes while paused',Math.abs((await page.evaluate(()=>window.__test.audio.snapshot())).position-pausedMusic)<.001);
   await page.keyboard.press('KeyP');
+  await page.waitForTimeout(40);check('music resumes from the paused position',(await page.evaluate(()=>window.__test.audio.snapshot())).position>=pausedMusic);
   await page.click('#sound-btn');check('sound button mutes audio',(await page.getAttribute('#sound-btn','aria-pressed'))==='false');
   await seed(()=>{
     const g=window.__test.game;g.restart(false);g.enemies.forEach(e=>e.state=0);Object.assign(g.enemies[0],{kind:2,state:2,x:40,y:192,h:16,vx:0,vy:0,cooldown:0});

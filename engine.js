@@ -245,7 +245,7 @@ export class Game {
     }
     if(this.state==='dying'){
       this.deathClock++;p.vy+=.32;p.y+=p.vy;
-      if(this.deathClock>55){this.lives--;if(this.lives>0)this.reset();else{this.state='gameover';this.deathClock=0;}}
+      if(this.deathClock>55){this.lives--;if(this.lives>0)this.reset();else{this.state='gameover';this.deathClock=0;this.sound('gameover');}}
       return;
     }
     if(++this.timeFrames>=60){this.timeFrames=0;this.clock--;}

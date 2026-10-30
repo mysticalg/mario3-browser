@@ -41,3 +41,13 @@ checking nonzero RMS/no clipping, runtime scheduling, pause/mute and carry/throw
 Ran the unmodified skill Playwright client and inspected gameplay, carried shell,
 desktop and mobile screenshots. No console errors. Remaining: original soundtrack,
 bonus rooms, suits, world map, shell carrying poses, more exact NES physics.
+
+0.4.1: Explicit request to use original audio from the user's ROM. Verified the
+local ROM SHA256 matches the Downloads ZIP. Executed the original sound driver
+at A000 (MMC3 28/29/31), capturing JSNES APU output at 44100 Hz. Generated original
+music and all game cues, plus game-over/time-warning. Detected loop segments from
+4DF driver state: normal intro 3.19458, end 28.75118 seconds; hurry intro 2.69535,
+end 23.99179. Removed the composed sequence/oscillator implementation. PCM player
+preserves pause position, resets on restart, supports independent music mute and
+original tempo recording without pitch-shifting. Export script and provenance
+are included; ROM is never committed. 36 engine / 52 browser checks pass locally.
