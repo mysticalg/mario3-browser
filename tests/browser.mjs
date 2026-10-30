@@ -143,6 +143,28 @@ try{
   await page.keyboard.down('ArrowLeft');await advance(90);await page.keyboard.up('ArrowLeft');
   check('manual input takes over protected demo',!(await snapshot()).protectedDemo);
 
+  await seed(()=>{
+    const {game:g,fx}=window.__test;g.restart(false);fx.enabled=true;fx.reset();g.enemies.forEach(e=>e.state=0);
+    Object.assign(g.player,{x:400,y:70,vx:3.6,vy:0,grounded:false});g.collectibles=[{x:410,y:70,got:false},{x:460,y:50,got:false}];
+    g.power={x:500,y:100,vy:0,dir:0,emerging:16};
+  });
+  await advance(100);
+  check('running builds bounded motion trails',(await snapshot()).fx.trails>0&&(await snapshot()).fx.trails<=5);
+  check('coin collection creates visible particles',(await snapshot()).fx.particles>0);
+  await page.screenshot({path:path.join(output,'fx-on.png'),fullPage:true});
+  const readPixels=()=>page.evaluate(()=>Array.from(document.querySelector('canvas').getContext('2d').getImageData(0,0,320,256).data).reduce((sum,v,i)=>(sum+v*(i%7+1))%2147483647,0));
+  const lit=await readPixels(),physics=await page.evaluate(()=>JSON.stringify(window.__test.game.snapshot()));
+  await page.keyboard.press('KeyV');
+  check('FX toggle restores crisp rendering',!(await snapshot()).fx.enabled&&await readPixels()!==lit);
+  check('FX toggle does not change gameplay state',await page.evaluate(()=>JSON.stringify(window.__test.game.snapshot()))===physics);
+  await page.screenshot({path:path.join(output,'fx-off.png'),fullPage:true});
+  await page.keyboard.press('KeyV');await page.keyboard.press('KeyP');const fxPaused=(await snapshot()).fx;await advance(500);
+  check('paused FX freeze with the game',JSON.stringify((await snapshot()).fx)===JSON.stringify(fxPaused));
+  await page.keyboard.press('KeyP');await page.keyboard.press('KeyV');
+  await page.reload();await page.evaluate(()=>window.gameReady);
+  check('FX preference persists after reload',!(await snapshot()).fx.enabled);
+  const reduced=await browser.newPage({reducedMotion:'reduce'});track(reduced);await reduced.goto(base+'/?test=1');await reduced.evaluate(()=>window.gameReady);
+  check('reduced-motion preference disables motion trails',await reduced.evaluate(()=>!window.__test.fx.motion));await reduced.close();
   const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});track(mobile);
   await mobile.goto(base+'/?test=1');await mobile.evaluate(()=>window.gameReady);
   await mobile.screenshot({path:path.join(output,'mobile-menu.png'),fullPage:true});

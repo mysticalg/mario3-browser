@@ -151,3 +151,17 @@ above); emulator: https://github.com/bfirsh/jsnes, Apache-2.0.
 Validated 36 engine checks and 52 browser checks, including waveform rendering,
 original PCM buffer playback, normal/hurry tracks, loop boundaries and pause
 position. Hardware speaker listening remains a user-side check.
+
+## 0.5.0 visual effects
+
+FX is on by default. Click **FX on/off** below the game, or press **V**, to switch
+between enhanced effects and the crisp original presentation. The choice persists
+in this browser. Includes collectible/block/mushroom/card glow, ground-projected
+shadows, soft sprite shadows, world-space running afterimages, landing/skid dust,
+coin/stomp/power-up/finish particles and subtle edge shading. The HUD stays crisp.
+Trails respect reduced-motion preferences. Effects run on the simulation clock,
+freeze when paused, are bounded to five trail poses and 100 particles, and do not
+modify collisions, controls, gameplay timing or original ROM audio.
+
+Validation: 36 engine checks, 59 browser checks, plus the skill Playwright client.
+Inspected effects-on/off, running, glowing power-ups, particles and phone layouts.

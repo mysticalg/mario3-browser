@@ -51,3 +51,12 @@ end 23.99179. Removed the composed sequence/oscillator implementation. PCM playe
 preserves pause position, resets on restart, supports independent music mute and
 original tempo recording without pitch-shifting. Export script and provenance
 are included; ROM is never committed. 36 engine / 52 browser checks pass locally.
+
+0.5.0: User requested glow, motion blur, shadows and more FX. Added presentation-only
+VisualEffects with pulsing item/block halos, projected/actor shadows, five-pose
+world-space running trails, bounded deterministic particles for landings/skids/
+coins/stomps/growth/finish and subtle vignette. Added persistent FX toggle and V,
+reduced-motion trail suppression, reset/pause integration and text-state hooks.
+36 existing engine tests / 59 browser checks pass. New checks cover visible pixel
+differences, physics invariance, trails, particles, pause, persistence and reduced
+motion. Ran unmodified skill client and inspected screenshots beyond start screen.

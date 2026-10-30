@@ -7,3 +7,5 @@
 @media(max-width:360px){.touch-controls button{width:46px;height:50px}.touch-actions .jump-control{width:60px}}
 
 .fullscreen-exit{position:absolute;right:16px;top:16px;z-index:3;padding:9px 12px;border-radius:6px;background:#141b26e6;font-size:11px}.fullscreen-exit[hidden]{display:none}.game-shell:fullscreen .touch-controls{position:absolute;left:16px;right:16px;bottom:max(12px,env(safe-area-inset-bottom));padding:8px 0;margin:0}.game-shell:fullscreen .touch-controls button{background:#202936dc}.game-shell:fullscreen .touch-controls .jump-control{background:#ef5b57dd}
+
+#fx-btn{flex:none;border-radius:6px;padding:6px 9px;font-size:11px;color:var(--mint)}#fx-btn[aria-pressed="true"]{background:#25413e;border-color:#497f73}.underbar .game-status{margin-left:auto}

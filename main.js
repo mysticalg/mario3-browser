@@ -1,14 +1,16 @@
-import {GameAudio} from './audio.js?v=0.4.1';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.4.1';
-import {ControllerInput} from './input.js?v=0.4.1';
-import {pixelText} from './pixel-font.js?v=0.4.1';
-const VERSION='0.4.1';
+import {VisualEffects} from './effects.js?v=0.5.0';
+import {GameAudio} from './audio.js?v=0.5.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.5.0';
+import {ControllerInput} from './input.js?v=0.5.0';
+import {pixelText} from './pixel-font.js?v=0.5.0';
+const VERSION='0.5.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
 ctx.imageSmoothingEnabled=false;
 const keyboard=new Set(),touch=new Set();
 const controllers=new ControllerInput();
+const fx=new VisualEffects();
 const touchControls=document.querySelector('.touch-controls');
 const touchHome=document.createComment('touch-controls-home');touchControls.before(touchHome);
 let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStepping=false,accumulator=0,lastTime=0;
@@ -22,7 +24,7 @@ function unlockAudio(){audio.enable(soundOn);}
 function focusGame(){canvas.focus({preventScroll:true});}
 function start(auto=false){
   if(!game)return;
-  audio.reset();unlockAudio();game.restart(auto);started=true;accumulator=0;previousVisual=null;
+  fx.reset();audio.reset();unlockAudio();game.restart(auto);started=true;accumulator=0;previousVisual=null;
   focusGame();syncUI();render();
 }
 function pause(){
@@ -59,6 +61,7 @@ function step(){
   if(started&&!game.paused){
     previousVisual={...game.player,camera:game.camera,enemies:game.enemies.map(e=>({x:e.x,y:e.y})),power:game.power?{x:game.power.x,y:game.power.y}:null};
     game.update(input());
+    fx.update(game,previousVisual);
   }
 }
 function drawSprite(id,x,y,height=16){
@@ -67,6 +70,10 @@ function drawSprite(id,x,y,height=16){
 }
 function text(value,x,y,size=8,color='#fcfcfc',align='left',outline=false){
   pixelText(ctx,value,x,y,{scale:size>=12?2:1,color,align,outline});
+}
+function actor(id,x,y,h=16){
+  ctx.save();if(fx.enabled){ctx.shadowColor='#0b283b55';ctx.shadowBlur=2;ctx.shadowOffsetX=1;ctx.shadowOffsetY=2;}
+  drawSprite(id,x,y,h);ctx.restore();
 }
 function render(alpha=1){
   if(!game||!world||!atlas)return;
@@ -84,6 +91,7 @@ function render(alpha=1){
     if(id!==0x80)drawSprite(id,(off%256)*16-cam,Math.floor(off/256)*16-(bump?Math.sin(bump.age/10*Math.PI)*3:0));
   }
   for(const [off,patch] of game.patches)if(!dynamicCells.has(off))drawSprite(patch.id,patch.tx*16-cam,patch.ty*16,16);
+  fx.background(ctx,game,cam);
   for(const c of game.collectibles)if(!c.got)drawSprite(276+Math.floor(game.frame/6)%4,c.x-cam,c.y);
   for(let n=0;n<game.enemies.length;n++){
     const e=game.enemies[n],before=previousVisual?.enemies[n];
@@ -94,10 +102,10 @@ function render(alpha=1){
     if(e.state===2||e.state===3){id=286;h=16;}
     if(e.state<0){id=274;h=16;}
     const ex=blend(before?.x,e.x),ey=blend(before?.y,e.y);
-    drawSprite(id,ex-cam,ey,h);
+    actor(id,ex-cam,ey,h);
     if(e.kind===4&&e.state>0)drawSprite(287,ex-cam,ey-6,16);
   }
-  if(game.power)drawSprite(275,blend(previousVisual?.power?.x,game.power.x)-cam,blend(previousVisual?.power?.y,game.power.y));
+  if(game.power)actor(275,blend(previousVisual?.power?.x,game.power.x)-cam,blend(previousVisual?.power?.y,game.power.y));
   for(const effect of game.effects){
     if(effect.kind==='coin')drawSprite(276+Math.floor(game.frame/4)%4,effect.x-cam,effect.y);
     if(effect.kind==='brick'){
@@ -114,8 +122,10 @@ function render(alpha=1){
   if(p.skidding&&p.grounded)playerId=(p.big?291:289)+(p.facing==='right'?1:0);
   if(p.crouched){playerId=293+(p.facing==='right'?1:0);drawHeight=32;drawY-=16;}
   if(game.state==='dying'){playerId=288;drawHeight=16;}
-  if(game.state==='dying'||game.auto||p.invul===0||game.frame%6<3)drawSprite(playerId,px-cam,drawY,drawHeight);
+  fx.ghosts(ctx,game,cam,drawSprite,playerId);
+  if(game.state==='dying'||game.auto||p.invul===0||game.frame%6<3)actor(playerId,px-cam,drawY,drawHeight);
   if(game.state!=='complete')drawSprite(280+Math.floor(game.frame/8)%3,2680-cam,120);
+  fx.foreground(ctx,cam);
   if(game.popup)text(game.popup.text,Math.floor(game.popup.x-cam),Math.floor(game.popup.y),7,'#fcfcfc','left',true);
   if(game.state==='complete'&&game.auto){
     ctx.fillStyle='#080d16dc';ctx.fillRect(53,57,214,77);
@@ -169,6 +179,7 @@ window.addEventListener('keydown',event=>{
   if(event.code==='KeyR'){event.preventDefault();start(false);}
   if(event.code==='KeyF'){event.preventDefault();fullscreen();}
   if(event.code==='KeyM'){event.preventDefault();document.getElementById('music-btn').click();}
+  if(event.code==='KeyV'){event.preventDefault();document.getElementById('fx-btn').click();}
 });
 window.addEventListener('keyup',event=>keyboard.delete(event.code));
 window.addEventListener('blur',()=>{
@@ -200,6 +211,10 @@ document.addEventListener('fullscreenchange',()=>{
   else touchHome.parentNode.insertBefore(touchControls,touchHome.nextSibling);
   focusGame();
 });
+function syncFX(){
+  $('fx-btn').textContent=fx.enabled?'FX on':'FX off';$('fx-btn').setAttribute('aria-pressed',String(fx.enabled));
+}
+$('fx-btn').addEventListener('click',()=>{fx.toggle();syncFX();focusGame();render();});syncFX();
 $('music-btn').addEventListener('click',()=>{audio.music=!audio.music;audio.stopMusic();$('music-btn').setAttribute('aria-pressed',String(audio.music));$('music-btn').setAttribute('aria-label',audio.music?'Mute music':'Enable music');$('music-btn').querySelector('span').textContent=audio.music?'Music on':'Music off';focusGame();});
 $('sound-btn').addEventListener('click',()=>{
   soundOn=!soundOn;unlockAudio();$('sound-btn').setAttribute('aria-pressed',String(soundOn));
@@ -221,10 +236,10 @@ window.advanceTime=ms=>{
   while(accumulator+1e-7>=STEP_MS){accumulator=Math.max(0,accumulator-STEP_MS);if(game)step();}
   render();
 };
-window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
+window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.4.1',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png')
+  fetch(new URL('./assets/level.json?v=0.5.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png')
 ]).then(([level,background,sprites])=>{
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;
   const backgroundCtx=scenery.getContext('2d');backgroundCtx.drawImage(background,0,0);
@@ -233,7 +248,7 @@ window.gameReady=Promise.all([
     dynamicCells.add(off);backgroundCtx.fillRect((off%256)*16,Math.floor(off/256)*16,16,16);
   }
   world=scenery;atlas=sprites;game=new Game(level,tone);$('loading').hidden=true;
-  if(testMode)window.__test={game,start,render,controllers,audio,presentation:()=>lastPresentation};
+  if(testMode)window.__test={game,start,render,controllers,audio,fx,presentation:()=>lastPresentation};
   render();return true;
 }).catch(error=>{
   $('loading').textContent=`Unable to load the game. ${error.message}. Please reload.`;console.error(error);return false;
