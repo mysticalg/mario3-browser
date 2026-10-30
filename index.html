@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14171b">
+  <meta name="description" content="Play the browser port of the Mario 3 RISC OS prototype. Keyboard, touch and gamepad controls.">
+  <title>Mario 3 · Browser demo</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <header class="topbar">
+      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo</p></div></div>
+      <div class="tools">
+        <button id="sound-btn" aria-label="Enable sound" title="Sound" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></svg><span>Sound off</span></button>
+        <button id="pause-btn" aria-label="Pause game" title="Pause (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg><span>Pause</span></button>
+        <button id="restart-btn" aria-label="Restart game" title="Restart (R)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg><span>Restart</span></button>
+        <button id="fullscreen-btn" aria-label="Enter fullscreen" title="Fullscreen (F)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/></svg><span>Fullscreen</span></button>
+      </div>
+    </header>
+
+    <section class="game-shell" aria-label="Mario 3 game">
+      <canvas id="game" width="320" height="256" tabindex="0" aria-label="Mario 3 game. Move with arrows or Z and X, Space jumps, Shift runs. Gamepad and touch controls are also supported."></canvas>
+      <div class="overlay" id="overlay">
+        <div class="menu" id="start-menu">
+          <p class="menu-kicker">WORLD 1-1</p>
+          <h2>LET’S-A GO.</h2>
+          <p class="menu-description">Three lives. One familiar adventure.<br>Reach the card at the end of the course.</p>
+          <button class="primary" id="start-btn">Play game <span aria-hidden="true">→</span></button>
+          <button class="secondary" id="demo-btn">Watch protected demo</button>
+          <p class="menu-foot">Keyboard, touch or controller</p>
+        </div>
+        <div class="menu" id="pause-menu" hidden>
+          <p class="menu-kicker" id="pause-kicker">TAKE A BREATHER</p>
+          <h2 id="pause-title">PAUSED</h2>
+          <p class="menu-description" id="pause-description">Your adventure is right where you left it.</p>
+          <button class="primary" id="resume-btn">Resume game</button>
+          <button class="secondary" id="menu-restart-btn">Start again</button>
+        </div>
+      </div>
+      <div class="loading" id="loading">Loading World 1-1…</div>
+    </section>
+
+    <div class="underbar">
+      <div class="keyboard-tips"><span><kbd>←</kbd> <kbd>→</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>Shift</kbd> Run</span></div>
+      <span class="game-status" id="mode-status">Ready to play</span>
+    </div>
+    <div class="controller-line"><span class="connection-dot" id="pad-dot"></span><span id="pad-status">Controller ready — connect a pad and press a button</span><span id="pad-help">D-pad / stick · A jump · X/B run · Start pause</span></div>
+
+    <div class="touch-controls" aria-label="Touch game controls">
+      <div class="touch-direction"><button data-control="left" aria-label="Move left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><button data-control="right" aria-label="Move right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7"/></svg></button></div>
+      <div class="touch-actions"><button class="run-control" data-control="run">RUN</button><button class="jump-control" data-control="jump">JUMP</button></div>
+    </div>
+    <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Bonus areas, other suits and the original soundtrack are still in development.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs. P pauses, R restarts, F toggles fullscreen. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Audio uses simple generated sound effects, enabled by the Sound button.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
+    <footer><span>NES → RISC OS → BROWSER</span><a id="source-link" href="https://github.com/mysticalg/mario3-browser" target="_blank" rel="noreferrer">Source on GitHub ↗</a></footer>
+  </main>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
