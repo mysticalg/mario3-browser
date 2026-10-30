@@ -90,3 +90,31 @@ test('held jump changes stomp bounce and consecutive stomps multiply points',()=
  const hit=hold=>{Object.assign(e,{kind:1,state:1,x:100,y:192,h:16,vx:0,vy:0});Object.assign(g.player,{x:100,y:179,vy:3,oldJump:hold});g.updateEnemies(191);return g.player.vy;};
  const low=hit(false),high=hit(true);assert.ok(high<low);assert.equal(g.score,300);
 });
+
+function runway(){const g=fixture();g.map.fill(0);for(let x=0;x<176;x++)g.patch(x,13,0x53,1);return g;}
+test('power blocks give small Mario a mushroom and Super Mario a leaf',()=>{
+ const g=fixture();Object.assign(g.player,{big:true,h:32,y:176});g.patch(10,10,0x61,4);g.head(10,10);assert.equal(g.power.kind,'leaf');
+ Object.assign(g.power,{x:g.player.x,y:g.player.y,emerging:0});g.updatePower();assert.equal(g.player.raccoon,true);assert.equal(g.player.big,true);
+});
+test('leaf falls with a sideways oscillation and grants raccoon power',()=>{
+ const g=runway();g.power={kind:'leaf',x:100,y:40,age:0,emerging:0};for(let i=0;i<30;i++)g.updatePower();assert.ok(g.power.x>100);assert.ok(g.power.y>40);
+});
+test('running charges P-meter and raccoon can launch into limited flight',()=>{
+ const g=runway();Object.assign(g.player,{big:true,raccoon:true,h:32,y:176});steps(g,80,{right:true,run:true});assert.equal(g.player.powerMeter,60);
+ g.update({right:true,run:true,jump:true});assert.equal(g.player.flight,256);assert.ok(g.player.vy<0);
+ const initialY=g.player.y;for(let i=0;i<70;i++)g.update({right:true,run:true,jump:i%8<4});assert.ok(g.player.flight>0);assert.ok(g.player.y<initialY);
+ steps(g,260);assert.equal(g.player.flight,0);assert.ok(g.player.powerMeter<60);
+});
+test('unfilled P-meter cannot initiate flight, but jump taps flutter down',()=>{
+ const g=runway();Object.assign(g.player,{big:true,raccoon:true,h:32,y:100,vy:5,grounded:false});g.update({jump:true});assert.equal(g.player.flight,0);assert.ok(g.player.vy<=1.31);assert.ok(g.player.wag>0);
+});
+test('raccoon tail defeats an enemy and strikes adjacent bricks',()=>{
+ const g=runway();Object.assign(g.player,{big:true,raccoon:true,h:32,y:176});const e=g.enemies[0];Object.assign(e,{kind:1,state:1,x:45,y:192,h:16,vx:0,vy:0});g.update({run:true});assert.ok(e.state<0);assert.ok(g.events.some(e=>e.type==='tail-hit'));
+ g.patch(3,12,0x67,2);steps(g,8,{run:true});assert.equal(g.map[12*256+3],0);
+});
+test('damage removes raccoon power before shrinking Mario and cancels flight',()=>{
+ const g=fixture();Object.assign(g.player,{big:true,raccoon:true,h:32,y:176,flight:100});g.hurt();assert.equal(g.player.raccoon,false);assert.equal(g.player.big,true);assert.equal(g.player.h,32);assert.equal(g.player.flight,0);g.player.invul=0;g.hurt();assert.equal(g.player.big,false);
+});
+test('sky flight has a camera, altitude limit and pause freezes flight timer',()=>{
+ const g=runway();Object.assign(g.player,{big:true,raccoon:true,h:32,y:-319,vy:-3,grounded:false,flight:100,wag:16});g.update({jump:true});assert.equal(g.player.y,-320);assert.ok(g.cameraY<0);g.paused=true;const time=g.player.flight;steps(g,50);assert.equal(g.player.flight,time);
+});

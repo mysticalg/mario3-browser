@@ -4,6 +4,13 @@
   "sampleRate": 44100,
   "engineEntry": "$A000, MMC3 banks 28/29/31",
   "files": {
+    "tail": {
+      "queue": "0x4f2",
+      "value": 176,
+      "seconds": 0.6156235827664399,
+      "peak": 0.052451008569031086,
+      "sha256": "9cefebe6db7bccc8f8dd60013c9dd6e478fc9cc28e59edf47e98ebb6c7498652"
+    },
     "jump": {
       "queue": "0x4f1",
       "value": 1,

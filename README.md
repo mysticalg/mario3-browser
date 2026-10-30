@@ -53,8 +53,8 @@ original sound driver and NES audio emulation. The game pauses when the tab lose
 
 This is a playable development prototype, **not the complete original game**.
 Physics and enemy behaviour are native reconstructions. The world map, bonus
-pipe transitions, raccoon/fire suits and plant fireballs remain
-unfinished. Leaf blocks currently release mushrooms. Some layout decoration and
+pipe transitions, fire/tanooki/frog/hammer suits and plant fireballs remain
+unfinished. Power blocks release mushrooms for small Mario and leaves for Super Mario. Some layout decoration and
 enemy poses differ from the original.
 
 ## Run locally
@@ -165,3 +165,31 @@ modify collisions, controls, gameplay timing or original ROM audio.
 
 Validation: 36 engine checks, 59 browser checks, plus the skill Playwright client.
 Inspected effects-on/off, running, glowing power-ups, particles and phone layouts.
+
+## 0.6.0 raccoon flight and generated parallax
+
+Collect a leaf from a power-up block while Super Mario to gain raccoon power.
+Run at full speed to charge the seven-step P-meter. Jump with a full meter and
+keep tapping Jump to flap during a limited 256-frame flight window. Jump taps
+without charged flight slow a fall. Tap Run for a tail swipe: it hits nearby
+enemies and adjacent bricks/question blocks. Damage removes raccoon power first,
+then Super Mario. Ducking and shell carrying still work. A vertical camera follows
+flight above the original level, with a bounded sky ceiling.
+
+**Try raccoon flight** starts airborne with raccoon power and a charged meter for
+quick testing. Normal Play starts small and keeps ordinary power-up progression.
+Keyboard: Space/Up flaps, Shift runs/swipes. Gamepad: A flaps, X/B runs/swipes.
+Touch: JUMP flaps, RUN runs/swipes. The original ROM tail sound is included.
+
+Raccoon walking, jump, flight, flutter, tail-turn and duck frames, and the leaf,
+are decoded from the supplied ROM. Sky/clouds, distant hills and forest scenery
+are generated with imagegen, split into alpha layers and scrolled at 0.08, 0.22
+and 0.45 times the world camera speed. Original terrain/collision geometry stays
+at full speed. The near layers move out of view as the camera climbs. Background
+asset provenance is recorded in `assets/background-provenance.json`.
+
+Validation: 43 engine checks and 66 browser checks, including charged takeoff,
+flight expiry, flutter, tail/enemy/block interaction, damage, sky camera, keyboard,
+simulated pad and real browser touch input. The skill Playwright client was run
+through raccoon gameplay and screenshots were inspected. Flight is a native
+reconstruction and is not cycle-exact NES gameplay.

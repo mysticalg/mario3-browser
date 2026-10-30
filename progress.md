@@ -60,3 +60,18 @@ reduced-motion trail suppression, reset/pause integration and text-state hooks.
 36 existing engine tests / 59 browser checks pass. New checks cover visible pixel
 differences, physics invariance, trails, particles, pause, persistence and reduced
 motion. Ran unmodified skill client and inspected screenshots beyond start screen.
+
+0.6.0: User requested raccoon suit/flight and imagegen parallax backgrounds.
+Applied imagegen skill; generated a three-strip transparent pixel-art scenery atlas
+and cropped it into sky/hills/forest. Removed strip divider pixels after visual
+inspection. Cleared original sky and cloud tiles from the rendered scenery while
+preserving original terrain/collisions. Added three parallax rates and vertical
+sky camera. Decoded original raccoon frames PF00-02/03-05/07-0A/36-38/50 and leaf
+from CHR; original ROM tail sound rendered with existing sound extraction tool.
+Added progressive mushroom->leaf blocks, leaf float, raccoon damage stage, P-meter,
+256-frame charged flight, tap-to-flap/flutter, tail enemies/blocks, ROM animations
+and raccoon motion trails. Added explicit quick-start flight button and controls.
+43 engine / 66 browser checks pass locally. Tested keyboard, simulated controller
+and CDP touch flight, loop audio and old full-course protected demo. Ran unmodified
+skill Playwright client and inspected raccoon, flight, generated landscape and
+mobile screenshots. Remaining: bonus sky areas, other suits, exact NES timing.

@@ -23,6 +23,7 @@ export class Game {
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     this.state = 'playing';
     this.player.carrying=-1;this.player.runHeld=false;
+    Object.assign(this.player,{raccoon:false,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false});
     this.deathClock = 0;
     this.winClock = 0;
     this.clock = 300;
@@ -100,7 +101,7 @@ export class Game {
     if([3,4,6,7].includes(kind)) {
       this.patch(tx,ty,0x5f,1);
       this.bumps.set(ty*256+tx,{age:0});
-      if(kind===4) { this.sound('appear');this.power={x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16};this.event('mushroom-released'); }
+      if(kind===4) { this.sound('appear');this.power={kind:p.big?'leaf':'mushroom',x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16,age:0};this.event(p.big?'leaf-released':'mushroom-released'); }
       else if(kind===6) { this.lives++;this.sound('oneup');this.pop(tx*16,ty*16,'1UP'); }
       else {
         this.coin();this.pop(tx*16,ty*16-14,'100');
@@ -118,6 +119,7 @@ export class Game {
     const p=this.player;
     if(p.invul>0||this.state!=='playing')return;
     if(p.carrying>=0)this.releaseShell();
+    if(p.raccoon){p.raccoon=false;p.flight=0;p.wag=0;p.tail=0;p.powerMeter=0;p.invul=90;this.sound('shrink');this.event('raccoon-lost');return;}
     if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=90;this.sound('shrink');this.event('shrunk'); }
     else this.die();
   }
@@ -126,13 +128,16 @@ export class Game {
     const p=this.player;
     if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
+    p.raccoon=false;p.flight=0;p.tail=0;p.powerMeter=0;
     this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
     const m=this.power,p=this.player;
     if(!m)return;
     if(m.emerging>0) {m.y--;m.emerging--;}
-    else {
+    else if(m.kind==='leaf'){
+      m.age=(m.age||0)+1;m.x+=Math.sin(m.age/16)*1.35;m.y+=.7;
+    }else {
       if(this.moveX(m,m.dir,16))m.dir=-m.dir;
       const previous=m.y+16;
       m.vy=Math.min(m.vy+.25,6);let ny=m.y+m.vy;
@@ -148,7 +153,8 @@ export class Game {
         else {p.h=16;p.crouched=true;}
         p.growing=18;p.invul=45;
       }
-      this.pop(p.x,p.y,'SUPER! +1000');this.sound('powerup');this.event('grew');
+      if(m.kind==='leaf'){p.raccoon=true;p.growing=18;p.invul=45;}
+      this.pop(p.x,p.y,m.kind==='leaf'?'RACCOON!':'SUPER! +1000');this.sound('powerup');this.event(m.kind==='leaf'?'raccoon':'grew');
     }
   }
   updateEnemies(previousBottom) {
@@ -159,6 +165,7 @@ export class Game {
       if(e.state<0)e.state++;
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
+      if(p.raccoon&&p.tail>4&&e.kind!==3&&e.state>0&&Math.abs(e.x-p.x)<30&&Math.abs(e.y+e.h/2-p.y-p.h/2)<23){e.state=-14;this.score+=100;this.sound('kick');this.event('tail-hit');continue;}
       if(e.kind===3){
         const phase=(this.frame+i*19)%180;
         let rise=Math.floor(clamp(Math.min(phase-35,145-phase)*1.5,0,32));
@@ -251,6 +258,13 @@ export class Game {
     if(++this.timeFrames>=60){this.timeFrames=0;this.clock--;}
     if(this.clock<=0){this.die();return;}
     if(p.growing>0)return;
+    const jumpPressed=jump&&!p.oldJump;
+    if(p.tail>0)p.tail--;
+    if(p.wag>0)p.wag--;
+    if(p.flight>0){p.flight--;if(p.flight===0){p.powerMeter=0;this.event('flight-ended');}}
+    if(p.raccoon&&run&&!p.oldRun&&p.carrying<0&&!down){p.tail=18;this.sound('tail');this.event('tail-swipe');}
+    if(p.raccoon&&p.tail===10)this.head(Math.floor((p.x+8+(p.facing==='right'?24:-24))/16),Math.floor((p.y+p.h-8)/16));
+    p.oldRun=run;
     p.runHeld=run;
     if(p.carrying>=0&&!run)this.releaseShell();
     if(p.big){
@@ -265,12 +279,20 @@ export class Game {
     if(direction>0&&!p.crouched){p.vx=Math.min(p.vx+acceleration,speed);p.facing='right';}
     if((direction===0||p.crouched)&&p.grounded)p.vx=Math.sign(p.vx)*Math.max(0,Math.abs(p.vx)-.16);
     if(Math.abs(p.vx)<.08)p.vx=0;
+    if(p.grounded){
+      p.flight=0;
+      if(run&&Math.abs(p.vx)>=3.2&&!p.crouched)p.powerMeter=Math.min(60,p.powerMeter+1);
+      else p.powerMeter=Math.max(0,p.powerMeter-2);
+    }else if(p.flight===0)p.powerMeter=Math.max(0,p.powerMeter-.12);
     p.coyote=p.grounded?5:Math.max(0,p.coyote-1);
     p.jumpBuffer=jump&&!p.oldJump?6:Math.max(0,p.jumpBuffer-1);
     if(p.jumpBuffer>0&&(p.grounded||p.coyote>0)){
+      if(p.raccoon&&p.powerMeter>=60){p.flight=256;p.wag=16;this.event('flight-started');}
       p.vy=-(6.2+Math.min(Math.abs(p.vx),3.6)*.16);p.grounded=false;p.coyote=0;p.jumpBuffer=0;this.sound(p.big?'jump-big':'jump');
     }
     if(!jump&&p.vy<-3)p.vy=-3;
+    if(p.raccoon&&!p.grounded&&jumpPressed){p.wag=16;if(p.flight>0)p.vy=Math.min(p.vy,-2.7);this.sound('tail');}
+    if(p.raccoon&&p.wag>0){if(p.flight>0)p.vy=Math.min(p.vy,-2.7);else if(p.vy>1)p.vy=1;}
     p.oldJump=jump;
     if(this.moveX(p,p.vx))p.vx=0;
     p.x=clamp(p.x,0,2780);
@@ -283,6 +305,7 @@ export class Game {
       ny=(ty+1)*16;p.vy=0;this.head(tx,ty);
     }
     p.y=ny;
+    if(p.y<-320){p.y=-320;p.vy=Math.max(0,p.vy);}
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
     this.updatePower();this.updateEnemies(previousBottom);p.travel+=Math.abs(p.vx);
@@ -291,12 +314,13 @@ export class Game {
     }
   }
   get camera() { return clamp(this.player.x-104,0,2496); }
+  get cameraY() { return clamp(this.player.y-64,-384,0); }
   snapshot() {
     const p=this.player,cam=this.camera;
     const near=entity=>entity.x>=cam-20&&entity.x<cam+340;
     return {
       coordinates:'World pixels; origin top-left; x right, y down. View 320x256, terrain ends at y224.',
-      state:this.state,paused:this.paused,protectedDemo:this.auto,frame:this.frame,camera:cam,
+      state:this.state,paused:this.paused,protectedDemo:this.auto,frame:this.frame,camera:cam,cameraY:this.cameraY,
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,

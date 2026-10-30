@@ -27,7 +27,7 @@ function wav(samples,path){
   for(let i=0;i<samples.length;i++)b.writeInt16LE(Math.round(Math.max(-1,Math.min(1,samples[i]))*32767),44+i*2);
   fs.writeFileSync(path,b);
 }
-const requests={jump:[0x4f1,1,1],'jump-big':[0x4f1,1,1],coin:[0x4f2,1,1],bump:[0x4f1,2,.6],break:[0x4f3,1,1],stomp:[0x4f1,4,.7],kick:[0x4f1,8,.7],appear:[0x4f2,2,1.5],powerup:[0x4f2,0x20,2],oneup:[0x4f2,0x40,2],shrink:[0x4f1,0x10,1],death:[0x4f4,1,4],clear:[0x4f4,0x20,6],gameover:[0x4f4,2,6],warning:[0x4f4,0x40,2],overworld:[0x4f5,0x10,65],'overworld-hurry':[0x4f5,0x10,55]};
+const requests={tail:[0x4f2,0xb0,.6],jump:[0x4f1,1,1],'jump-big':[0x4f1,1,1],coin:[0x4f2,1,1],bump:[0x4f1,2,.6],break:[0x4f3,1,1],stomp:[0x4f1,4,.7],kick:[0x4f1,8,.7],appear:[0x4f2,2,1.5],powerup:[0x4f2,0x20,2],oneup:[0x4f2,0x40,2],shrink:[0x4f1,0x10,1],death:[0x4f4,1,4],clear:[0x4f4,0x20,6],gameover:[0x4f4,2,6],warning:[0x4f4,0x40,2],overworld:[0x4f5,0x10,65],'overworld-hurry':[0x4f5,0x10,55]};
 const out=new URL('../assets/audio/',import.meta.url);fs.mkdirSync(out,{recursive:true});
 const report={romSHA256:crypto.createHash('sha256').update(rom).digest('hex'),emulator:'JSNES 2.1.0',sampleRate:rate,engineEntry:'$A000, MMC3 banks 28/29/31',files:{}};
 for(const [name,[queue,value,seconds]] of Object.entries(requests)){

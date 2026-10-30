@@ -19,6 +19,17 @@ const advance=ms=>page.evaluate(ms=>window.advanceTime(ms),ms);
 const seed=async fn=>page.evaluate(fn);
 try{
   await page.goto(base+'/?test=1');await page.evaluate(()=>window.gameReady);
+  await page.click('#raccoon-btn');await advance(30);
+  check('raccoon quick start equips suit and flight timer',(await snapshot()).player.raccoon&&(await snapshot()).player.flight>0);
+  for(let n=0;n<14;n++){await page.keyboard.down('Space');await advance(80);await page.keyboard.up('Space');await advance(40);}
+  check('jump taps sustain flight into scrolling sky',(await snapshot()).player.y<0&&(await snapshot()).cameraY<0);
+  await page.screenshot({path:path.join(output,'raccoon-flight.png'),fullPage:true});
+  await page.keyboard.down('ShiftLeft');await advance(30);await page.keyboard.up('ShiftLeft');check('Run button triggers raccoon tail attack',(await snapshot()).events.some(e=>e.type==='tail-swipe'));
+  const layers=await page.evaluate(()=>{
+    const t=window.__test,g=t.game;g.player.x=500;t.render();const a=JSON.parse(window.render_game_to_text()).parallax;g.player.x=600;t.render();const b=JSON.parse(window.render_game_to_text()).parallax;return {a,b};
+  });
+  check('three generated layers scroll at distinct parallax speeds',layers.a.length===3&&layers.b[0].offset-layers.a[0].offset<layers.b[1].offset-layers.a[1].offset&&layers.b[1].offset-layers.a[1].offset<layers.b[2].offset-layers.a[2].offset);
+  await page.reload();await page.evaluate(()=>window.gameReady);
   await page.screenshot({path:path.join(output,'desktop-menu.png'),fullPage:true});
   check('start menu displayed',(await snapshot()).screen==='menu');
   const box=await page.locator('canvas').boundingBox();check('desktop game uses a readable large viewport',box.width>=700&&box.height>=500);
@@ -42,8 +53,8 @@ try{
   const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
   check('original ROM music decoded and playing',audioState.state==='running'&&audioState.scheduled>0&&audioState.source==='original-rom');
   const renderedAudio=await page.evaluate(async()=>{
-    const {GameAudio}=await import('./audio.js?v=0.4.1');const results=[];
-    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning']){
+    const {GameAudio}=await import('./audio.js?v=0.6.0');const results=[];
+    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning','tail']){
       const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;await a.load();a.effect(name);
       const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;
       for(const sample of data){energy+=sample*sample;peak=Math.max(peak,Math.abs(sample));}
@@ -51,7 +62,7 @@ try{
     }
     return results;
   });
-  check('all 15 original effects and fanfares render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
+  check('all 16 original effects and fanfares render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
   const originalMusic=await page.evaluate(()=>{
     const a=window.__test.audio,b=a.buffers.get('overworld'),h=a.buffers.get('overworld-hurry');
     return {duration:b.duration,hurryDuration:h.duration,loop:a.manifest.files.overworld.loop,source:a.musicNode?.buffer===b};
@@ -97,6 +108,9 @@ try{
   await seed(()=>{window.__pads[0].axes[0]=0;window.__test.game.restart(false);});await advance(900);
   await seed(()=>window.__pads[0].buttons[0].pressed=true);await advance(210);
   check('controller A jumps',(await snapshot()).player.y<180);
+  await seed(()=>{window.__pads[0].buttons[0].pressed=false;Object.assign(window.__test.game.player,{raccoon:true,big:true,h:32,y:80,vy:3,grounded:false,flight:100,wag:0,oldJump:false});});await advance(30);
+  await seed(()=>window.__pads[0].buttons[0].pressed=true);await advance(60);
+  check('controller A flaps upward during raccoon flight',(await snapshot()).player.vy<0&&(await snapshot()).player.flight>0);
   await seed(()=>{window.__pads[0].buttons[0].pressed=false;window.__pads[0].buttons[9].pressed=true;});await advance(30);
   check('controller Start pauses',(await snapshot()).paused);
   const held=(await snapshot()).frame;await advance(300);check('held Start does not toggle repeatedly',(await snapshot()).paused&&(await snapshot()).frame===held);
@@ -182,6 +196,10 @@ try{
   await mobile.evaluate(()=>window.advanceTime(210));
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   check('touch jump lifts player',await mobile.evaluate(()=>window.__test.game.player.y<180));
+  await mobile.evaluate(()=>Object.assign(window.__test.game.player,{raccoon:true,big:true,h:32,y:80,vy:3,grounded:false,flight:100,wag:0,oldJump:false}));
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:jumpBox.x+jumpBox.width/2,y:jumpBox.y+jumpBox.height/2,id:12}]});
+  await mobile.evaluate(()=>window.advanceTime(60));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  check('touch Jump flaps upward during raccoon flight',await mobile.evaluate(()=>window.__test.game.player.vy<0&&window.__test.game.player.flight>0));
   await mobile.screenshot({path:path.join(output,'mobile-gameplay.png'),fullPage:true});
   await mobile.evaluate(()=>window.__test.start(false));
   const runBox=await mobile.locator('[data-control="run"]').boundingBox();
@@ -200,6 +218,10 @@ try{
   await mobile.setViewportSize({width:320,height:740});
   check('small phone has no horizontal overflow',await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await mobile.screenshot({path:path.join(output,'small-phone.png'),fullPage:true});
+  await mobile.reload();await mobile.evaluate(()=>window.gameReady);
+  const menuBounds=await mobile.evaluate(()=>{const shell=document.querySelector('canvas').getBoundingClientRect(),button=document.getElementById('raccoon-btn').getBoundingClientRect();return button.top>=shell.top&&button.bottom<=shell.bottom;});
+  check('raccoon quick-start button fits the small-phone menu',menuBounds);
+  await mobile.screenshot({path:path.join(output,'small-phone-menu.png'),fullPage:true});
   check('no browser errors',errors.length===0);
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify({url:base,passed:results.length,checks:results,errors},null,2));
   console.log(JSON.stringify({passed:results.length,errors,output}));

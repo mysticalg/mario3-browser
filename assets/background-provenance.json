@@ -1,0 +1,45 @@
+{
+  "generator": "imagegen built-in",
+  "source": "exec-d580df6f-a833-4324-80fb-47cbbb405de3.png",
+  "generatedDimensions": [
+    1536,
+    1024
+  ],
+  "layers": [
+    {
+      "file": "parallax-sky.png",
+      "crop": [
+        0,
+        0,
+        1536,
+        336
+      ],
+      "scrollRate": 0.08
+    },
+    {
+      "file": "parallax-hills.png",
+      "crop": [
+        0,
+        355,
+        1536,
+        680
+      ],
+      "scrollRate": 0.22
+    },
+    {
+      "file": "parallax-forest.png",
+      "crop": [
+        0,
+        705,
+        1536,
+        1024
+      ],
+      "scrollRate": 0.45
+    }
+  ],
+  "outputDimensions": [
+    768,
+    171
+  ],
+  "purpose": "Original generated background art; independently scrolling alpha layers behind supplied-ROM terrain."
+}
