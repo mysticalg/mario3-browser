@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.10.0';
-import {Parallax} from './parallax.js?v=0.10.0';
-import {GameAudio} from './audio.js?v=0.10.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.10.0';
-import {ControllerInput} from './input.js?v=0.10.0';
-import {pixelText} from './pixel-font.js?v=0.10.0';
-const VERSION='0.10.0';
+import {VisualEffects} from './effects.js?v=0.11.0';
+import {Parallax} from './parallax.js?v=0.11.0';
+import {GameAudio} from './audio.js?v=0.11.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.11.0';
+import {ControllerInput} from './input.js?v=0.11.0';
+import {pixelText} from './pixel-font.js?v=0.11.0';
+const VERSION='0.11.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -90,7 +90,7 @@ function input(){
 function step(){
   pollController();
   if(started&&!game.paused){
-    previousVisual={...game.player,camera:game.camera,cameraY:game.cameraY,enemies:game.enemies.map(e=>({x:e.x,y:e.y})),power:game.power?{x:game.power.x,y:game.power.y}:null};
+    previousVisual={...game.player,camera:game.camera,cameraY:game.cameraY,enemies:game.enemies.map(e=>({x:e.x,y:e.y,ref:e})),power:game.power?{x:game.power.x,y:game.power.y}:null};
     game.update(input());
     fx.update(game,previousVisual);
   }
@@ -148,9 +148,11 @@ function render(alpha=1){
   fx.background(ctx,game,cam);
   for(const c of game.collectibles)if(!c.got)drawSprite(276+Math.floor(game.frame/6)%4,c.x-cam,c.y);
   for(let n=0;n<game.enemies.length;n++){
-    const e=game.enemies[n],before=previousVisual?.enemies[n];
+    const e=game.enemies[n],before=previousVisual?.enemies[n]?.ref===e?previousVisual.enemies[n]:null;
     if(e.state===0)continue;
-    let id=272+Math.floor(game.frame/8)%2,h=16;
+    ctx.save();
+    if(e.pipeTicks>0){ctx.beginPath();const mouth=e.pipeMouth-cam;ctx.rect(e.pipeDirection>0?mouth:0,-512,e.pipeDirection>0?320-mouth:mouth,1024);ctx.clip();}
+    let id=272+(e.pipeTicks>0?Math.floor((40-e.pipeTicks)/4)%2:Math.floor(game.frame/8)%2),h=16;
     if([2,5].includes(e.kind)){id=e.vx>0?285:284;h=32;}
     if(e.kind===3){id=e.plantPhase===undefined?283:311+(e.spits?(e.plantRed?4:2):0)+Math.floor((e.plantAnim||0)/8)%2;h=e.h;}
     if(e.state===2||e.state===3){id=286;h=16;}
@@ -162,6 +164,7 @@ function render(alpha=1){
     else if(e.kind===3&&e.plantPhase!==undefined)drawPlant(id,ex-cam,ey,e);
     else actor(id,ex-cam+shake,ey,h);
     if(e.kind===4&&e.state>0)drawSprite(287,ex-cam,ey-6,16);
+    ctx.restore();
   }
   if(game.power){
     const x=blend(previousVisual?.power?.x,game.power.x)-cam,y=blend(previousVisual?.power?.y,game.power.y);
@@ -327,7 +330,7 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.10.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
+  fetch(new URL('./assets/level.json?v=0.11.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
 ]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof])=>{
   fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
   bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];

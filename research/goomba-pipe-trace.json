@@ -1,0 +1,100 @@
+{
+  "romSHA256": "4377a7f5e6eb50bdd2ac6f249bf1a7085500aca8eb41f38545c3a2731c51a579",
+  "entry": 48405,
+  "bank": 7,
+  "coordinateSystem": "Original ROM world pixels, before the browser Y offset of208",
+  "reference": "Southbird PRG007 CFire_GoombaPipe / PrepareNewObjectOrAbort",
+  "cases": [
+    {
+      "playerX": 350,
+      "count": 0,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 1,
+      "objects": []
+    },
+    {
+      "playerX": 350,
+      "count": 1,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 2,
+      "objects": []
+    },
+    {
+      "playerX": 350,
+      "count": 2,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 3,
+      "objects": []
+    },
+    {
+      "playerX": 350,
+      "count": 3,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 4,
+      "objects": []
+    },
+    {
+      "playerX": 500,
+      "count": 0,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 1,
+      "objects": [
+        {
+          "slot": 4,
+          "id": 114,
+          "x": 400,
+          "y": 301,
+          "emerging": 40,
+          "flip": 64
+        }
+      ]
+    },
+    {
+      "playerX": 500,
+      "count": 1,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 2,
+      "objects": [
+        {
+          "slot": 4,
+          "id": 114,
+          "x": 400,
+          "y": 301,
+          "emerging": 40,
+          "flip": 64
+        }
+      ]
+    },
+    {
+      "playerX": 500,
+      "count": 2,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 3,
+      "objects": [
+        {
+          "slot": 4,
+          "id": 114,
+          "x": 400,
+          "y": 301,
+          "emerging": 40,
+          "flip": 64
+        }
+      ]
+    },
+    {
+      "playerX": 500,
+      "count": 3,
+      "returned": true,
+      "timer": 112,
+      "nextCount": 4,
+      "objects": []
+    }
+  ]
+}

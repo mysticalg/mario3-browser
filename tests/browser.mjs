@@ -307,6 +307,13 @@ try{
   await page.waitForFunction(()=>JSON.parse(window.render_game_to_text()).audio.track==='athletic');
   check('World 1-2 selects original athletic music',(await snapshot()).audio.track==='athletic');
   await page.screenshot({path:path.join(output,'world-1-2-minimap.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game;g.enemies=[];Object.assign(g.player,{x:450,y:100,vx:0,vy:0,grounded:false,invul:1000});g.spawners[0].timer=1;});await advance(17);
+  check('original pipe spawns a Goomba on its output side',(await snapshot()).enemies.some(e=>e.spawned&&e.pipeTicks===40));
+  await advance(450);const emerging=(await snapshot()).enemies.find(e=>e.spawned);
+  check('pipe Goomba moves horizontally before gravity',emerging?.pipeTicks>0&&emerging.y===93&&emerging.x>410);
+  await page.screenshot({path:path.join(output,'pipe-goomba-emerging.png'),fullPage:true});
+  await advance(300);
+  check('pipe Goomba leaves pipe motion and falls onto the hills',(await snapshot()).enemies.some(e=>e.spawned&&e.pipeTicks===0&&e.y>93));
   await seed(()=>{const g=window.__test.game;g.score=2000;g.coins=8;g.enemies=[];Object.assign(g.player,{x:g.goal.x-5,y:g.goal.y,big:true,raccoon:true,h:32,vy:0,grounded:false});});await advance(30);
   check('course clear offers progression',await page.getByRole('button',{name:'Next course',exact:true}).isVisible());
   await page.getByRole('button',{name:'Next course',exact:true}).click();await advance(30);

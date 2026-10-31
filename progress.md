@@ -179,3 +179,19 @@ hills and phone course-map captures and unmodified skill-client hills gameplay.
 81 gameplay+6 decoder tests and102 browser checks pass locally. Remaining native
 fidelity: pipe spawners, Boomerang Brothers, microgoomba attacks, whistle and new
 secret rooms/pipes, full original overworld and later worlds. Goal stays active.
+
+0.11.0 continued reverse engineering: fixed earlier enum interpretation: C1 is
+BC+CFIRE_GOOMBAPIPE_R(6)-1, not a ROM/disassembly mismatch. Corrected current
+research documentation/tests and retained this correction to the historical log.
+Traced PRG005 cannon initialization, PRG007 CFire_GoombaPipe and PRG004 ground
+movement. Executed original routine BD15 under JSNES for8 player-side/counter
+cases; committed reproducible trace tool/results and compared all8 with runtime.
+Added3 World1-2 pipe spawners, initial96/reload112,3-output/1-skip cycle, output
+side and5 occupied-slot gates, Y-3,40-tick collision-free half-pixel emergence,
+pipe-mouth sprite clipping, offscreen culling and empty-entry reuse. Preserved
+spawner state with areas and reset with course restart/death. Corrected ordinary
+Goomba walking speed to.5. Fixed interpolation identity when reusing dead slots.
+94 simulation/decoder and105 browser checks pass locally. Inspected pipe-mouth
+emergence and unmodified skill-client hills screenshots. Goal remains active:
+Boomerang Brothers/microgoombas, whistle/secret routes, later worlds/full map and
+remaining original mechanics unfinished.

@@ -15,8 +15,9 @@ export class Game {
     this.reset();
   }
   createEnemies(level) {
-    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:kind===2?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta,...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
+    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:[1,2].includes(kind)?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta,...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
   }
+  createSpawners(level){return (level.spawners||[]).map(s=>({...s,active:false,timer:96,cycle:0}));}
   setCourse(level,preserve=true){
     const suit={big:this.player.big,raccoon:this.player.raccoon,fire:this.player.fire};
     this.level=level;this.reset();this.paused=false;if(!preserve)this.auto=false;
@@ -32,7 +33,7 @@ export class Game {
     this.tiles = Uint8Array.from(this.level.tiles);
     this.patches = new Map();
     this.collectibles = this.level.coins.map(([x,y]) => ({x,y,got:false}));
-    this.enemies = this.createEnemies(this.level);
+    this.enemies = this.createEnemies(this.level);this.spawners=this.createSpawners(this.level);
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     Object.assign(this.player,this.level.spawn||{});
     this.state = 'playing';
@@ -54,14 +55,14 @@ export class Game {
   }
   get areaWidth(){return this.activeLevel.playableWidth||2816;}
   switchArea(name){
-    const keys=['map','tiles','patches','collectibles','enemies','power','sky'];
+    const keys=['map','tiles','patches','collectibles','enemies','spawners','power','sky'];
     this.areaStates.set(this.area,Object.fromEntries(keys.map(k=>[k,this[k]])));
     this.area=name;this.activeLevel=name==='bonus'?this.level.bonus:this.level;
     const saved=this.areaStates.get(name);
     if(saved)Object.assign(this,saved);
     else{
       const l=this.activeLevel;this.map=Uint8Array.from(l.solid);this.tiles=Uint8Array.from(l.tiles);this.patches=new Map();
-      this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);
+      this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);this.spawners=this.createSpawners(l);
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
     this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];
@@ -307,6 +308,22 @@ export class Game {
     }
     this.enemyFireballs=this.enemyFireballs.filter(b=>!b.dead);
   }
+  updateSpawners(){
+    for(const s of this.spawners){
+      if(!s.active){if(s.x<this.camera||s.x>=this.camera+320)continue;s.active=true;}
+      if(s.timer>0)s.timer--;
+      if(s.timer>0)continue;
+      s.timer=112;s.cycle=(s.cycle+1)&255;
+      if((s.cycle&3)===0||((this.player.x>=s.x)!==(s.direction>0)))continue;
+      // Offscreen newborns are discarded by the original object deletion routine.
+      if(s.x<this.camera-32||s.x>this.camera+320)continue;
+      if(this.enemies.filter(e=>e.state>0&&Math.abs(e.x-this.player.x)<360).length>=5)continue;
+      const enemy={kind:1,romId:0x72,x:s.x,y:s.y-3,baseY:s.y-3,vx:s.direction*.5,vy:0,state:1,h:16,cooldown:0,pipeTicks:40,pipeDirection:s.direction,pipeMouth:s.x+(s.direction>0?16:0),spawned:true};
+      const empty=this.enemies.findIndex(e=>e.state===0);
+      if(empty<0)this.enemies.push(enemy);else this.enemies[empty]=enemy;
+      this.event('pipe-goomba-spawned');
+    }
+  }
   updateEnemies(previousBottom) {
     const p=this.player;
     for(let i=0;i<this.enemies.length;i++){
@@ -324,6 +341,7 @@ export class Game {
       }
       if(held&&p.carrying===i){e.x=p.x+(p.facing==='right'?12:-12);e.y=p.y+p.h-18;continue;}
       if(e.state<0){e.state++;if(e.deathStyle==='tumble'){e.x+=e.vx;e.y+=e.vy;e.vy+=.25;}}
+      if(e.spawned&&(e.x<this.camera-32||e.x>this.camera+352)){e.state=0;continue;}
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
       if(p.raccoon&&p.tail>4&&e.kind!==3&&e.state>0&&Math.abs(e.x-p.x)<30&&Math.abs(e.y+e.h/2-p.y-p.h/2)<23){e.state=-14;this.score+=100;this.sound('kick');this.event('tail-hit');continue;}
@@ -333,7 +351,7 @@ export class Game {
         let rise=Math.floor(clamp(Math.min(phase-35,145-phase)*1.5,0,32));
         if(Math.abs(p.x-e.x)<25&&rise<3)rise=0;
         e.y=e.baseY-rise;e.h=rise;
-      }else{
+      }else if(e.pipeTicks>0){e.pipeTicks--;e.x+=e.vx;}else{
         const previous=e.y+e.h;
         // PRG004 red Troopa: turn once when floor contact is lost,
         // then apply the reversed velocity twice to undo the step.
@@ -485,7 +503,7 @@ export class Game {
     if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
-    this.updatePower();this.updateEnemies(previousBottom);this.updateEnemyFireballs();p.travel+=Math.abs(p.vx);
+    this.updatePower();this.updateEnemies(previousBottom);this.updateSpawners();this.updateEnemyFireballs();p.travel+=Math.abs(p.vx);
     if(this.area==='main'&&p.x+14>this.goal.x-8&&p.x<this.goal.x+24&&p.y<this.goal.y+32&&p.y+p.h>this.goal.y-8){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
@@ -501,7 +519,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      course:this.course,goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      course:this.course,spawners:this.spawners.map(s=>({...s})),goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

@@ -15,7 +15,7 @@ test('hills decoder retains original floor and ceiling slope profiles',()=>{
  assert.deepEqual(s.profiles[1],Array.from({length:16},(_,i)=>15-i));assert.deepEqual(s.profiles[2],Array.from({length:16},(_,i)=>i));
  assert.equal(s.tileShape[0x99],1);assert.equal(s.tileShape[0x9b],2);assert.equal(s.tileShape[0xa2],17);assert.equal(s.playerVelocityEffect[1],-3);
 });
-test('World 1-2 preserves actual ROM C1 records rather than a mismatched disassembly enum',()=>{
- const l=read('1-2');assert.equal(l.objects.filter(o=>o.id===0xc1).length,3);assert.equal(l.objects.filter(o=>o.id===0xbc).length,0);
+test('World 1-2 C1 records resolve to BC + CFIRE_GOOMBAPIPE_R(6) - 1',()=>{
+ assert.equal(0xbc+6-1,0xc1);const l=read('1-2');assert.equal(l.objects.filter(o=>o.id===0xc1).length,3);assert.equal(l.objects.filter(o=>o.id===0xbc).length,0);
 });
 test('decoder refuses unsupported ROM revisions',()=>assert.throws(()=>decodeLevel(Buffer.alloc(16),'1-1'),/Unsupported ROM revision/));

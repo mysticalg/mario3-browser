@@ -30,13 +30,14 @@ for name in ['1-2','1-3']:
   else:
    tiles[ty*256+tx]=t;solid[ty*256+tx]=kind
    if t not in dynamic:scene.paste(tileImages[t],(tx*16,ty*16),tileImages[t])
- objects=[];metadata=[];unsupported=[]
+ objects=[];metadata=[];unsupported=[];spawners=[]
  for o in src['objects']:
   id=o['id'];kind={0x72:1,0x73:4,0x74:4,0x6c:2,0x6d:2,0x6e:5,0xa0:3,0xa4:3,0xa6:3}.get(id)
   if kind:
    objects.append([kind,o['x'],o['y']-208-(16 if kind in [2,5] else 0)]);metadata.append({'romId':id,'red':id==0x6d})
+  elif id in [0xc0,0xc1]:spawners.append({'romId':id,'x':o['x'],'y':o['y']-208,'direction':1 if id==0xc1 else -1})
   elif id!=0x41:unsupported.append(o)
  goal=next(o for o in src['objects'] if o['id']==0x41)
- level={'id':name,'spawn':{'x':24,'y':176 if name=='1-2' else 192},'width':4096,'height':256,'playableWidth':src['playableWidth'],'tiles':tiles,'solid':solid,'sky':sky,'coins':coins,'objects':objects,'objectMetadata':metadata,'pipes':[],'goal':{'x':goal['x']-8,'y':goal['y']-216},'slopes':src['slopes'],'emptyTile':skyId,'music':'athletic' if name=='1-2' else 'overworld','unsupportedObjects':unsupported,'provenance':src['provenance']}
+ level={'id':name,'spawn':{'x':24,'y':176 if name=='1-2' else 192},'width':4096,'height':256,'playableWidth':src['playableWidth'],'tiles':tiles,'solid':solid,'sky':sky,'coins':coins,'objects':objects,'objectMetadata':metadata,'pipes':[],'goal':{'x':goal['x']-8,'y':goal['y']-216},'slopes':src['slopes'],'emptyTile':skyId,'music':'athletic' if name=='1-2' else 'overworld','spawners':spawners,'unsupportedObjects':unsupported,'provenance':src['provenance']}
  (out/f'{name}.json').write_text(json.dumps(level,separators=(',',':')));atlas.save(out/f'{name}-tiles.png');scene.save(out/f'{name}-world.png',optimize=True)
  print(name,'enemies',len(objects),'remaining object variants',len(unsupported),'coins',len(coins))

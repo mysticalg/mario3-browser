@@ -43,10 +43,22 @@ Without it, the verifier repeats decoding twice and compares the saved exports.
 Only 1-1 currently has this independent full-runtime comparison; 1-2/1-3 were
 reproduced through the original loader and rendered for visual inspection.
 
-Object IDs are read from the supplied ROM rather than substituted from source
-symbols. In particular, World 1-2 has three C1 records where the available
-Southbird source labels a different pipe-spawner ID. These records remain raw;
-their matching runtime behaviour must be traced before course integration.
+Object IDs are read from the supplied ROM. Correction to the initial research:
+the three World1-2 C1 records match the Southbird definition exactly:
+`OBJ_CFIRE_GOOMBAPIPE_R = $BC + CFIRE_GOOMBAPIPE_R - 1`, where the cannon ID is6.
+The early enum scanner mistakenly stopped at BC and ignored the arithmetic.
+The v0.11.0 runtime now implements these spawners. Their isolated original-ROM
+trace is in `goomba-pipe-trace.json`; reproduce it with:
+
+```
+node tools/trace-rom-goomba-pipes.mjs your-rom.nes research/goomba-pipe-trace.json
+```
+
+This calls the original PRG007 routine at BD15 for both player sides and four
+counter phases. All8 traces return normally. They prove right-side gating,
+112-frame reload, three outputs followed by one skipped cycle, exact spawn
+coordinates and40-frame emergence. The initial96-frame timer and half-pixel
+horizontal movement come from PRG005 spawn setup and PRG004 ground-troop logic.
 
 Research reference and credit: [Southbird's SMB3 disassembly](https://github.com/captainsouthbird/smb3),
 PRG000 slope tables, PRG014 common generators, PRG015 plains and PRG016 hills.

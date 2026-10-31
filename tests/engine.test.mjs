@@ -288,3 +288,40 @@ test('new course note blocks bounce Mario and held jump gives a higher bounce',(
 test('protected demo traverses the original hills and reaches the 1-2 card',()=>{
  const g=new Game(hills);g.auto=true;for(let i=0;i<3000&&g.state!=='complete';i++)g.update();assert.equal(g.state,'complete');assert.equal(g.lives,3);
 });
+
+test('original World 1-2 has three right-output pipe spawners, no unhandled C1 records',()=>{
+ const g=new Game(hills);assert.deepEqual(g.spawners.map(s=>[s.romId,s.x,s.y,s.direction]),[[0xc1,400,96,1],[0xc1,688,96,1],[0xc1,2224,112,1]]);assert.equal(hills.unsupportedObjects.length,0);
+});
+function pipeFixture(){const g=new Game(hills);g.enemies=[];g.spawners=[{x:400,y:96,direction:1,romId:0xc1,timer:96,cycle:0,active:false}];g.player.x=450;g.player.y=20;return g;}
+test('pipe activates on screen, waits96 ticks then uses112 ticks and skips every fourth attempt',()=>{
+ const g=pipeFixture();for(let i=0;i<95;i++)g.updateSpawners();assert.equal(g.enemies.length,0);g.updateSpawners();assert.equal(g.enemies.length,1);assert.equal(g.spawners[0].timer,112);
+ for(let cycle=2;cycle<=5;cycle++){g.enemies=[];for(let i=0;i<112;i++)g.updateSpawners();assert.equal(g.enemies.length,cycle===4?0:1);}
+ const off=pipeFixture();off.player.x=24;off.updateSpawners();assert.equal(off.spawners[0].active,false);assert.equal(off.spawners[0].timer,96);
+});
+test('Goomba pipes only output toward the player and obey five occupied object slots',()=>{
+ const g=pipeFixture();g.player.x=350;g.spawners[0].timer=1;g.updateSpawners();assert.equal(g.enemies.length,0);assert.equal(g.spawners[0].cycle,1);
+ g.player.x=450;g.spawners[0].timer=1;g.enemies=Array.from({length:5},()=>({kind:1,state:1,x:460}));g.updateSpawners();assert.equal(g.enemies.length,5);assert.equal(g.spawners[0].cycle,2);
+ g.enemies[2].state=0;g.spawners[0].timer=1;g.updateSpawners();assert.equal(g.enemies.length,5);assert.equal(g.enemies[2].pipeTicks,40);
+});
+test('new pipe Goomba matches original position, half-pixel movement and40 collision-free ticks',()=>{
+ const g=pipeFixture();g.spawners[0].timer=1;g.updateSpawners();const e=g.enemies[0];assert.deepEqual([e.x,e.y,e.vx,e.vy,e.pipeTicks],[400,93,.5,0,40]);
+ for(let i=0;i<40;i++)g.updateEnemies(0);assert.equal(e.x,420);assert.equal(e.y,93);assert.equal(e.pipeTicks,0);
+ g.updateEnemies(0);assert.equal(e.x,420.5);assert.ok(e.y>93);assert.ok(e.vy>0);
+});
+test('spawned Goombas are vulnerable, culled offscreen and do not allocate without limit',()=>{
+ const g=pipeFixture();g.spawners[0].timer=1;g.updateSpawners();const e=g.enemies[0];for(let i=0;i<40;i++)g.updateEnemies(0);g.fireballs=[{x:e.x+3,y:e.y+3,vx:0,vy:0,age:0,poof:0}];g.updateFireballs();assert.ok(e.state<0);
+ e.state=1;g.player.x=1000;g.updateEnemies(0);assert.equal(e.state,0);
+});
+test('pause freezes spawners and course restart resets their cadence and spawned enemies',()=>{
+ const g=pipeFixture();g.paused=true;const before=JSON.stringify(g.spawners);steps(g,120);assert.equal(JSON.stringify(g.spawners),before);
+ g.spawners[0].timer=1;g.updateSpawners();g.restart();assert.equal(g.spawners[0].timer,96);assert.equal(g.enemies.some(e=>e.spawned),false);
+});
+
+test('browser pipe spawning matches all8 isolated original-ROM routine traces',()=>{
+ const trace=JSON.parse(fs.readFileSync(new URL('../research/goomba-pipe-trace.json',import.meta.url)));
+ for(const sample of trace.cases){
+  assert.equal(sample.returned,true);const g=pipeFixture();g.player.x=sample.playerX;Object.assign(g.spawners[0],{active:true,timer:0,cycle:sample.count});g.updateSpawners();
+  assert.equal(g.spawners[0].timer,sample.timer);assert.equal(g.spawners[0].cycle,sample.nextCount);assert.equal(g.enemies.length,sample.objects.length);
+  if(sample.objects.length){const actual=g.enemies[0],original=sample.objects[0];assert.deepEqual([actual.romId,actual.x,actual.y+208,actual.pipeTicks],[original.id,original.x,original.y,original.emerging]);}
+ }
+});

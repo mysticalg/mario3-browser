@@ -337,3 +337,29 @@ including slope ascent/descent/jumps, note bounce, new goal positions, selected
 course respawn, campaign state, live minimap movement, persisted clears, touch
 selection and gamepad course progression. Reviewed desktop/phone captures and
 the unmodified skill client's input-driven hills gameplay.
+
+## 0.11.0 original Goomba pipe spawners
+
+World1-2's three right-output pipes now create Goombas. The implementation uses
+PRG005's initial96-frame delay and PRG007's112-frame cycle, with three attempts
+followed by one skipped cycle. Output is gated by Mario's side and five nearby
+occupied object slots. Goombas start at the original X/Y-3 position, move at
+half a pixel per frame for40 ticks without world collision/gravity, then walk
+and fall normally. The emerging sprite is clipped to the pipe mouth. Spawned
+Goombas can be defeated, are removed offscreen and reuse empty entries. Pause,
+course restart and area state retain/reset the appropriate spawner state.
+Ordinary Goomba walking speed now also matches PRG004's normal half-pixel value.
+
+Correction to the earlier research note: C1 was never a source/ROM mismatch.
+The first enum scanner read only BC from the expression
+`$BC + CFIRE_GOOMBAPIPE_R - 1`; with cannon ID6 this is exactly C1. Current
+research documentation and test names have been corrected. The original ROM
+routine was executed directly at BD15 for both player sides and four counter
+phases. All8 cases match the browser implementation. Reproduce the isolated
+trace with `node tools/trace-rom-goomba-pipes.mjs your-rom.nes`.
+
+Validation:88 gameplay plus6 decoder checks (94 total),105 browser checks,
+inspected pipe-emergence and skill-client hills captures. Existing course,
+minimap, controller, fire, raccoon, plant and bonus-room checks still pass.
+Boomerang Brothers, microgoomba attacks, whistle/secret routes, later worlds and
+the full original overworld still need reconstruction.
