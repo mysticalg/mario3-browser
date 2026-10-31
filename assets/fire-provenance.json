@@ -1,0 +1,24 @@
+{
+  "romSHA256": "4377a7f5e6eb50bdd2ac6f249bf1a7085500aca8eb41f38545c3a2731c51a579",
+  "frameTableOffset": 240737,
+  "framePageOffsets": 241223,
+  "throwFrames": [
+    14,
+    17,
+    16,
+    52,
+    53,
+    54
+  ],
+  "paletteTableOffset": 66873,
+  "firePalette": [
+    39,
+    54,
+    22
+  ],
+  "projectilePatterns": [
+    101,
+    103
+  ],
+  "projectileCHRBank": 4
+}

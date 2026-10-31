@@ -24,7 +24,7 @@ export class Game {
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     this.state = 'playing';
     this.player.carrying=-1;this.player.runHeld=false;
-    Object.assign(this.player,{raccoon:false,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false});
+    Object.assign(this.player,{raccoon:false,fire:false,firing:0,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false});
     this.deathClock = 0;
     this.winClock = 0;
     this.clock = 300;
@@ -37,6 +37,7 @@ export class Game {
     this.effects = [];
     this.bumps = new Map();
     this.sky=new Map((this.level.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));this.transition=null;
+    this.fireballs=[];
   }
   get areaWidth(){return this.activeLevel.playableWidth||2816;}
   switchArea(name){
@@ -50,7 +51,7 @@ export class Game {
       this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=l.objects.map(([kind,x,y])=>({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
-    this.effects=[];this.bumps=new Map();this.popup=null;
+    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];
   }
   tryPipe(input){
     const p=this.player;if(p.carrying>=0)return false;
@@ -140,7 +141,7 @@ export class Game {
   head(tx,ty,force=false) {
     if(tx<0||tx>=256||ty<0||ty>=16)return;
     const kind=this.map[ty*256+tx], p=this.player;
-    if([2,3,4,6,7].includes(kind))this.bumpEnemies(tx,ty);
+    if([2,3,4,6,7,8].includes(kind))this.bumpEnemies(tx,ty);
     if(kind===2) {
       if(p.big||force) {
         this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound('break');this.event('brick-broken');
@@ -148,10 +149,10 @@ export class Game {
       }
       else {this.sound('bump');this.bumps.set(ty*256+tx,{age:0});}
     }
-    if([3,4,6,7].includes(kind)) {
+    if([3,4,6,7,8].includes(kind)) {
       this.patch(tx,ty,0x5f,1);
       this.bumps.set(ty*256+tx,{age:0});
-      if(kind===4) { this.sound('appear');this.power={kind:p.big?'leaf':'mushroom',x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16,age:0};this.event(p.big?'leaf-released':'mushroom-released'); }
+      if(kind===4||kind===8) { const item=p.big?(kind===8?'flower':'leaf'):'mushroom';this.sound('appear');this.power={kind:item,x:tx*16,y:ty*16,vy:0,dir:1.1,emerging:16,age:0};this.event(item+'-released'); }
       else if(kind===6) { this.lives++;this.sound('oneup');this.pop(tx*16,ty*16,'1UP'); }
       else {
         this.coin();this.pop(tx*16,ty*16-14,'100');
@@ -169,8 +170,9 @@ export class Game {
     const p=this.player;
     if(p.invul>0||this.state!=='playing')return;
     if(p.carrying>=0)this.releaseShell();
-    if(p.raccoon){p.raccoon=false;p.flight=0;p.wag=0;p.tail=0;p.powerMeter=0;p.invul=90;this.sound('shrink');this.event('raccoon-lost');return;}
-    if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=90;this.sound('shrink');this.event('shrunk'); }
+    if(p.raccoon){p.raccoon=false;p.flight=0;p.wag=0;p.tail=0;p.powerMeter=0;p.invul=113;this.sound('suit-loss');this.event('raccoon-lost');return;}
+    if(p.fire){p.fire=false;p.firing=0;p.invul=113;this.sound('suit-loss');this.event('fire-lost');return;}
+    if(p.big) { p.big=false;if(p.h===32)p.y+=16;p.h=16;p.crouched=false;p.invul=113;this.sound('shrink');this.event('shrunk'); }
     else this.die();
   }
   die() {
@@ -178,7 +180,7 @@ export class Game {
     const p=this.player;
     if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
-    p.raccoon=false;p.flight=0;p.tail=0;p.powerMeter=0;
+    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];
     this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
@@ -187,6 +189,9 @@ export class Game {
     if(m.emerging>0) {m.y--;m.emerging--;}
     else if(m.kind==='leaf'){
       m.age=(m.age||0)+1;m.x+=Math.sin(m.age/16)*1.35;m.y+=.7;
+    }else if(m.kind==='flower'){
+      const previous=m.y+16;m.vy=Math.min(m.vy+.25,6);let ny=m.y+m.vy;
+      if(this.floor(m.x,previous,ny+16)){ny=Math.floor((ny+16)/16)*16-16;m.vy=0;}m.y=ny;
     }else {
       if(this.moveX(m,m.dir,16))m.dir=-m.dir;
       const previous=m.y+16;
@@ -196,6 +201,7 @@ export class Game {
     }
     if(m.y>264){this.power=null;return;}
     if(p.x+14>m.x+1&&p.x+2<m.x+15&&p.y+p.h>m.y+1&&p.y<m.y+16){
+      const wasBig=p.big;
       this.power=null;this.score+=1000;
       if(!p.big){
         p.big=true;
@@ -203,9 +209,40 @@ export class Game {
         else {p.h=16;p.crouched=true;}
         p.growing=18;p.invul=45;
       }
-      if(m.kind==='leaf'){p.raccoon=true;p.growing=18;p.invul=45;}
-      this.pop(p.x,p.y,m.kind==='leaf'?'RACCOON!':'SUPER! +1000');this.sound('powerup');this.event(m.kind==='leaf'?'raccoon':'grew');
+      if(m.kind==='leaf'){p.raccoon=true;p.fire=false;p.growing=18;p.invul=45;}
+      if(m.kind==='flower'&&wasBig){p.fire=true;p.raccoon=false;p.flight=0;p.wag=0;p.tail=0;p.growing=18;p.invul=45;}
+      this.pop(p.x,p.y,p.fire?'FIRE MARIO!':m.kind==='leaf'?'RACCOON!':'SUPER! +1000');this.sound('powerup');this.event(p.fire?'fire-power':m.kind==='leaf'?'raccoon':'grew');
     }
+  }
+  throwFireball(){
+    const p=this.player;
+    if(!p.fire||p.crouched||p.carrying>=0||this.fireballs.length>=2)return false;
+    this.fireballs.push({x:p.x+4,y:p.y+4,vx:p.facing==='right'?3:-3,vy:3,age:0,poof:0});p.firing=11;this.sound('fire');this.event('fireball-fired');return true;
+  }
+  poofFireball(b){if(!b.poof){b.poof=13;b.vx=0;b.vy=0;this.event('fireball-poof');}}
+  updateFireballs(){
+    for(const b of this.fireballs){
+      if(b.poof){b.poof--;if(!b.poof)b.dead=true;continue;}
+      b.age++;const nextX=b.x+b.vx;
+      if(this.hard(nextX+(b.vx>0?7:0),b.y+4)){this.poofFireball(b);continue;}
+      b.x=nextX;const bottom=b.y+8;b.y+=b.vy;
+      if(b.age%4===0)b.vy=Math.min(4,b.vy+1);
+      if(b.vy>=0){
+        const a=this.cell(b.x+1,b.y+8),c=this.cell(b.x+6,b.y+8),top=Math.floor((b.y+8)/16)*16;
+        if((a&&a!==5||c&&c!==5||(a===5||c===5)&&bottom<=top+1)&&bottom<=top+5){b.y=top-8;b.vy=-3;this.event('fireball-bounced');}
+      }
+      if(this.hard(b.x+4,b.y+4)){this.poofFireball(b);continue;}
+      for(const e of this.enemies){
+        if(e.state<=0||e.h<=0||b.x+8<=e.x+2||b.x>=e.x+14||b.y+8<=e.y||b.y>=e.y+e.h)continue;
+        if(e.fireImmune!==true){
+          if(e===this.enemies[this.player.carrying])continue;
+          e.state=-45;e.deathStyle='tumble';e.vy=-3.25;e.vx=b.vx>0?.75:-.75;this.score+=100;this.pop(e.x,e.y-8,'100');this.sound('kick');this.event('fireball-hit');
+        }
+        this.poofFireball(b);break;
+      }
+      if(b.x<this.camera-20||b.x>this.camera+340||b.y>this.cameraY+256||b.y<-400)b.dead=true;
+    }
+    this.fireballs=this.fireballs.filter(b=>!b.dead);
   }
   updateEnemies(previousBottom) {
     const p=this.player;
@@ -223,7 +260,7 @@ export class Game {
         }
       }
       if(held&&p.carrying===i){e.x=p.x+(p.facing==='right'?12:-12);e.y=p.y+p.h-18;continue;}
-      if(e.state<0)e.state++;
+      if(e.state<0){e.state++;if(e.deathStyle==='tumble'){e.x+=e.vx;e.y+=e.vy;e.vy+=.25;}}
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
       if(p.raccoon&&p.tail>4&&e.kind!==3&&e.state>0&&Math.abs(e.x-p.x)<30&&Math.abs(e.y+e.h/2-p.y-p.h/2)<23){e.state=-14;this.score+=100;this.sound('kick');this.event('tail-hit');continue;}
@@ -237,7 +274,7 @@ export class Game {
         if(e.state!==2){
           const wallX=e.x+e.vx+(e.vx>0?13:2),wallY=e.y+e.h/2;
           const tx=Math.floor(wallX/16),ty=Math.floor(wallY/16);
-          if(e.state===3&&this.hard(wallX,wallY)&&[2,3,4,6,7].includes(this.cell(wallX,wallY))){
+          if(e.state===3&&this.hard(wallX,wallY)&&[2,3,4,6,7,8].includes(this.cell(wallX,wallY))){
             this.head(tx,ty,true);e.vx=-e.vx;this.sound('bump');this.event('shell-block');
           }else if(this.moveX(e,e.vx))e.vx=-e.vx;
         }
@@ -325,12 +362,14 @@ export class Game {
     }
     if(++this.timeFrames>=60){this.timeFrames=0;this.clock--;}
     if(this.clock<=0){this.die();return;}
-    if(p.growing>0)return;
+    if(p.growing>0){p.oldRun=run;p.oldJump=jump;return;}
+    this.updateFireballs();if(p.firing>0)p.firing--;
     const jumpPressed=jump&&!p.oldJump;
     if(p.tail>0)p.tail--;
     if(p.wag>0)p.wag--;
     if(p.flight>0){p.flight--;if(p.flight===0){p.powerMeter=0;this.event('flight-ended');}}
     if(p.raccoon&&run&&!p.oldRun&&p.carrying<0&&!down){p.tail=18;this.sound('tail');this.event('tail-swipe');}
+    if(p.fire&&run&&!p.oldRun&&!down)this.throwFireball();
     if(p.raccoon&&p.tail===10)this.head(Math.floor((p.x+8+(p.facing==='right'?24:-24))/16),Math.floor((p.y+p.h-8)/16));
     p.oldRun=run;
     p.runHeld=run;
@@ -393,7 +432,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

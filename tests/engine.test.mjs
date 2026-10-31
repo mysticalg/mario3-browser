@@ -165,3 +165,40 @@ test('raccoon can fly to the real high pipe and descend into the bonus room',()=
  }
  assert.equal(g.area,'bonus');assert.equal(g.player.raccoon,true);
 });
+
+function fireFixture(){const g=runway();Object.assign(g.player,{big:true,fire:true,h:32,y:176});return g;}
+test('flower blocks follow original mushroom-to-flower progression',()=>{
+ const g=fixture();g.patch(10,10,0x61,8);g.head(10,10);assert.equal(g.power.kind,'mushroom');g.player.big=true;g.patch(10,10,0x61,8);g.head(10,10);assert.equal(g.power.kind,'flower');Object.assign(g.power,{x:g.player.x,y:g.player.y,emerging:0});g.updatePower();assert.equal(g.player.fire,true);assert.equal(g.player.raccoon,false);
+});
+test('loose ordinary flower only grows small Mario; Super Mario receives fire',()=>{
+ const g=fixture();g.power={kind:'flower',x:24,y:192,emerging:0,vy:0};g.updatePower();assert.equal(g.player.big,true);assert.equal(g.player.fire,false);g.power={kind:'flower',x:24,y:g.player.y,emerging:0,vy:0};g.updatePower();assert.equal(g.player.fire,true);
+});
+test('Fire Mario fires on Run press edges and supports only two slots',()=>{
+ const g=fireFixture();g.update({run:true});steps(g,5,{run:true});assert.equal(g.fireballs.length,1);g.update();g.update({run:true});assert.equal(g.fireballs.length,2);g.update();g.update({run:true});assert.equal(g.fireballs.length,2);assert.equal(g.player.firing,9);
+});
+test('fireball uses ROM integer speed, downward launch and four-tick gravity',()=>{
+ const g=fireFixture();g.throwFireball();const b=g.fireballs[0],x=b.x,y=b.y;g.updateFireballs();assert.equal(b.x,x+3);assert.equal(b.y,y+3);assert.equal(b.vy,3);g.updateFireballs();g.updateFireballs();g.updateFireballs();assert.equal(b.vy,4);
+});
+test('fireballs bounce at -3 on ground and poof against walls without breaking them',()=>{
+ const g=fireFixture();g.fireballs=[{x:50,y:198,vx:3,vy:3,age:0,poof:0}];g.updateFireballs();assert.equal(g.fireballs[0].vy,-3);assert.equal(g.fireballs[0].y,200);
+ g.patch(4,12,0x67,2);Object.assign(g.fireballs[0],{x:55,y:192,vx:3,vy:0,poof:0});g.updateFireballs();assert.equal(g.fireballs[0].poof,13);assert.equal(g.map[12*256+4],2);for(let i=0;i<13;i++)g.updateFireballs();assert.equal(g.fireballs.length,0);
+});
+test('fireballs defeat vulnerable enemies and respect fire immunity',()=>{
+ const g=fireFixture(),e=g.enemies[0];Object.assign(e,{kind:1,state:1,x:60,y:192,h:16,vx:0,vy:0});g.fireballs=[{x:52,y:188,vx:3,vy:3,age:0,poof:0}];g.updateFireballs();assert.ok(e.state<0);assert.equal(e.deathStyle,'tumble');assert.equal(g.score,100);assert.equal(g.fireballs[0].poof,13);
+ Object.assign(e,{state:1,fireImmune:true});g.fireballs=[{x:52,y:188,vx:3,vy:3,age:0,poof:0}];g.updateFireballs();assert.equal(e.state,1);assert.equal(g.score,100);
+});
+test('ducking and carrying prevent firing; projectiles freeze on pause',()=>{
+ const g=fireFixture();g.update({down:true,run:true});assert.equal(g.fireballs.length,0);g.player.crouched=false;g.player.carrying=0;assert.equal(g.throwFireball(),false);g.player.carrying=-1;g.throwFireball();const b=JSON.stringify(g.fireballs);g.paused=true;steps(g,20);assert.equal(JSON.stringify(g.fireballs),b);
+});
+test('USA fire damage returns to Super Mario, and leaf replaces fire power',()=>{
+ const g=fireFixture();g.hurt();assert.equal(g.player.fire,false);assert.equal(g.player.big,true);assert.equal(g.player.invul,113);g.player.fire=true;g.power={kind:'leaf',x:g.player.x,y:g.player.y,emerging:0,age:0,vy:0};g.updatePower();assert.equal(g.player.raccoon,true);assert.equal(g.player.fire,false);
+});
+test('a launched fireball reaches and defeats a walking Goomba through normal updates',()=>{
+ const g=fireFixture(),e=g.enemies[0];Object.assign(e,{kind:1,state:1,x:120,y:192,h:16,vx:-.65,vy:0});g.update({run:true});steps(g,80);assert.equal(g.score,100);assert.ok(g.events.some(e=>e.type==='fireball-hit'));assert.equal(g.lives,3);
+});
+test('area changes preserve Fire Mario but clear projectiles; death clears both',()=>{
+ const g=fireFixture();g.throwFireball();g.switchArea('bonus');assert.equal(g.player.fire,true);assert.equal(g.fireballs.length,0);g.throwFireball();g.die();assert.equal(g.fireballs.length,0);assert.equal(g.player.fire,false);
+});
+test('holding Run during a power-up freeze does not queue a delayed shot',()=>{
+ const g=fireFixture();g.player.growing=18;steps(g,20,{run:true});assert.equal(g.fireballs.length,0);g.update();g.update({run:true});assert.equal(g.fireballs.length,1);
+});

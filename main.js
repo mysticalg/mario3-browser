@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.7.0';
-import {Parallax} from './parallax.js?v=0.7.0';
-import {GameAudio} from './audio.js?v=0.7.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.7.0';
-import {ControllerInput} from './input.js?v=0.7.0';
-import {pixelText} from './pixel-font.js?v=0.7.0';
-const VERSION='0.7.0';
+import {VisualEffects} from './effects.js?v=0.8.0';
+import {Parallax} from './parallax.js?v=0.8.0';
+import {GameAudio} from './audio.js?v=0.8.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.8.0';
+import {ControllerInput} from './input.js?v=0.8.0';
+import {pixelText} from './pixel-font.js?v=0.8.0';
+const VERSION='0.8.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -16,7 +16,7 @@ const touchControls=document.querySelector('.touch-controls');
 const touchHome=document.createComment('touch-controls-home');touchControls.before(touchHome);
 let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStepping=false,accumulator=0,lastTime=0;
 let padState=null,controllerLabel='';
-let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles;
+let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles,fireArt,flowerArt,ballArt,poofArt;
 const dynamicCells=new Set();
 const testMode=new URLSearchParams(location.search).has('test');
 
@@ -26,7 +26,8 @@ function focusGame(){canvas.focus({preventScroll:true});}
 function start(auto=false,raccoon=false){
   if(!game)return;
   fx.reset();audio.reset();unlockAudio();game.restart(auto);started=true;accumulator=0;previousVisual=null;
-  if(raccoon){Object.assign(game.player,{raccoon:true,big:true,h:32,y:144,vy:-2.7,grounded:false,powerMeter:60,flight:256,wag:16});game.event('raccoon-practice');}
+  if(raccoon==='fire'){Object.assign(game.player,{fire:true,big:true,h:32,y:176});game.event('fire-practice');}
+  else if(raccoon){Object.assign(game.player,{raccoon:true,big:true,h:32,y:144,vy:-2.7,grounded:false,powerMeter:60,flight:256,wag:16});game.event('raccoon-practice');}
   focusGame();syncUI();render();
 }
 function pause(){
@@ -69,7 +70,7 @@ function step(){
 }
 function drawSprite(id,x,y,height=16){
   if(height<=0||x<-24||x>320||y-renderCameraY>224||y+height-renderCameraY<0)return;
-  const source=id<256?(game.area==='bonus'?bonusTiles:skyTiles):atlas;
+  const source=id<256?(game.area==='bonus'?bonusTiles:skyTiles):id>=296&&id<=307?fireArt:atlas;
   ctx.drawImage(source,(id%32)*16,Math.floor(id/32)*32,16,height,Math.round(x),Math.round(y),16,height);
 }
 function text(value,x,y,size=8,color='#fcfcfc',align='left',outline=false){
@@ -79,6 +80,7 @@ function actor(id,x,y,h=16){
   ctx.save();if(fx.enabled){ctx.shadowColor='#0b283b55';ctx.shadowBlur=2;ctx.shadowOffsetX=1;ctx.shadowOffsetY=2;}
   drawSprite(id,x,y,h);ctx.restore();
 }
+function drawFirePlayer(id,x,y,h=32){ctx.drawImage(fireArt,(id%32)*16,Math.floor(id/32)*32,16,h,Math.round(x),Math.round(y),16,h);}
 function drawRaccoon(x,y,p){
   let pose=p.grounded?Math.floor(p.travel/6)%3:3;
   if(p.wag>0)pose=(p.flight>0?8:11)+Math.floor(game.frame/5)%3;
@@ -115,15 +117,21 @@ function render(alpha=1){
     if([2,5].includes(e.kind)){id=e.vx>0?285:284;h=32;}
     if(e.kind===3){id=283;h=e.h;}
     if(e.state===2||e.state===3){id=286;h=16;}
-    if(e.state<0){id=274;h=16;}
+    if(e.state<0){id=e.deathStyle==='tumble'?([2,5].includes(e.kind)?286:e.kind===3?283:272):274;h=e.deathStyle==='tumble'?e.h:16;}
     const ex=blend(before?.x,e.x),ey=blend(before?.y,e.y);
     const shake=e.state===2&&e.wake<80&&(e.wake&[2,2,4,8,16,16][Math.floor(e.wake/16)])?1:0;
-    actor(id,ex-cam+shake,ey,h);
+    if(e.deathStyle==='tumble'&&e.state<0){ctx.save();ctx.translate(Math.round(ex-cam),Math.round(ey+h));ctx.scale(1,-1);ctx.drawImage(atlas,(id%32)*16,Math.floor(id/32)*32,16,h,0,0,16,h);ctx.restore();}
+    else actor(id,ex-cam+shake,ey,h);
     if(e.kind===4&&e.state>0)drawSprite(287,ex-cam,ey-6,16);
   }
   if(game.power){
     const x=blend(previousVisual?.power?.x,game.power.x)-cam,y=blend(previousVisual?.power?.y,game.power.y);
-    if(game.power.kind==='leaf')ctx.drawImage(leafArt,Math.round(x),Math.round(y),16,16);else actor(275,x,y);
+    if(game.power.kind==='leaf'||game.power.kind==='flower')ctx.drawImage(game.power.kind==='leaf'?leafArt:flowerArt,Math.round(x),Math.round(y),16,16);else actor(275,x,y);
+  }
+  for(const b of game.fireballs){
+    if(fx.enabled)fx.glow(ctx,b.x+4-cam,b.y+4,b.poof?14:12,'#ffae43',.55);
+    if(b.poof){const pose=Math.min(3,Math.floor((13-b.poof)/4));ctx.drawImage(poofArt,pose*16,0,16,16,Math.round(b.x-cam-4),Math.round(b.y-4),16,16);}
+    else ctx.drawImage(ballArt,Math.floor(game.frame/4)%4*8,0,8,16,Math.round(b.x-cam),Math.round(b.y-4),8,16);
   }
   for(const effect of game.effects){
     if(effect.kind==='coin')drawSprite(276+Math.floor(game.frame/4)%4,effect.x-cam,effect.y);
@@ -141,7 +149,8 @@ function render(alpha=1){
   if(p.skidding&&p.grounded)playerId=(p.big?291:289)+(p.facing==='right'?1:0);
   if(p.crouched){playerId=293+(p.facing==='right'?1:0);drawHeight=32;drawY-=16;}
   if(game.state==='dying'){playerId=288;drawHeight=16;}
-  fx.ghosts(ctx,game,cam,p.raccoon?(_,x,y)=>drawRaccoon(x,y,p):drawSprite,playerId);
+  if(p.fire&&p.firing>0)playerId=296+(p.facing==='right'?6:0)+(p.grounded?0:3)+Math.min(2,Math.floor(p.firing/4));
+  fx.ghosts(ctx,game,cam,p.raccoon?(_,x,y)=>drawRaccoon(x,y,p):p.fire?drawFirePlayer:drawSprite,playerId);
   ctx.save();
   if(game.state==='pipe'){
     ctx.beginPath();if(game.transition.clip==='above')ctx.rect(0,-384,320,game.transition.mouth+384);else ctx.rect(0,game.transition.mouth,320,640);ctx.clip();
@@ -149,7 +158,8 @@ function render(alpha=1){
   if(game.state==='dying'||game.state==='pipe'||game.auto||p.invul===0||game.frame%6<3){
     if(p.raccoon&&game.state!=='dying'){
       drawRaccoon(px-cam,py-(p.crouched?16:0),p);
-    }else actor(playerId,px-cam,drawY,drawHeight);
+    }else if(p.fire)drawFirePlayer(playerId,px-cam,drawY,drawHeight);
+    else actor(playerId,px-cam,drawY,drawHeight);
   }
   ctx.restore();
   if(game.state!=='complete')drawSprite(280+Math.floor(game.frame/8)%3,2680-cam,120);
@@ -166,7 +176,7 @@ function render(alpha=1){
   text(`TIME ${String(game.clock).padStart(3,'0')}`,7,249,8,'#bec9d7');
   const meter=clamp(Math.floor(p.powerMeter/60*7),0,7);
   text('P '+'>'.repeat(meter)+'·'.repeat(7-meter),91,249,8,p.flight>0||meter===7?'#ffe28b':'#bec9d7');
-  text(p.raccoon?'RACCOON':p.big?'SUPER MARIO':'MARIO',313,249,8,p.big?'#f8bd7f':'#bec9d7','right');
+  text(p.fire?'FIRE MARIO':p.raccoon?'RACCOON':p.big?'SUPER MARIO':'MARIO',313,249,8,p.big?'#f8bd7f':'#bec9d7','right');
   syncUI();
 }
 function syncUI(){
@@ -195,6 +205,7 @@ function syncUI(){
 }
 const actionKeys=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyS','KeyW','Space','KeyZ','KeyX','ShiftLeft','ShiftRight']);
 window.addEventListener('keydown',event=>{
+  if(event.target.matches?.('select,input,textarea')||event.target.isContentEditable)return;
   if(event.target.closest?.('details')&&event.target!==canvas)return;
   if(actionKeys.has(event.code)){
     if(event.code==='Space'&&event.target.tagName==='BUTTON')return;
@@ -226,7 +237,8 @@ for(const button of document.querySelectorAll('[data-control]')){
 }
 $('start-btn').addEventListener('click',()=>start(false));
 $('demo-btn').addEventListener('click',()=>start(true));
-$('raccoon-btn').addEventListener('click',()=>start(false,true));
+$('raccoon-btn').addEventListener('click',()=>start(false,$('practice-suit').value));
+$('practice-suit').addEventListener('change',()=>{document.querySelector('#start-menu .menu-foot').textContent=$('practice-suit').value==='fire'?'Fire Mario: tap Run to shoot · two fireballs max':'Raccoon: tap Jump to fly · tap Run to swipe';});
 $('pause-btn').addEventListener('click',pause);
 $('restart-btn').addEventListener('click',()=>start(false));
 $('resume-btn').addEventListener('click',()=>{if(game.state==='complete'||game.state==='gameover')start(false);else pause();});
@@ -269,14 +281,15 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.7.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png')
-]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles])=>{
+  fetch(new URL('./assets/level.json?v=0.8.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
+]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof])=>{
+  fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
   bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];
   raccoonArt=raccoon;leafArt=leaf;parallax=new Parallax(layers);
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;
   const backgroundCtx=scenery.getContext('2d');backgroundCtx.drawImage(background,0,0);
   const sky=backgroundCtx.getImageData(0,0,1,1).data;backgroundCtx.fillStyle=`rgb(${sky[0]},${sky[1]},${sky[2]})`;
-  for(let off=0;off<level.solid.length;off++)if([2,3,4,6,7].includes(level.solid[off])){
+  for(let off=0;off<level.solid.length;off++)if([2,3,4,6,7,8].includes(level.solid[off])){
     dynamicCells.add(off);backgroundCtx.fillRect((off%256)*16,Math.floor(off/256)*16,16,16);
   }
   const pixels=backgroundCtx.getImageData(0,0,4096,256);

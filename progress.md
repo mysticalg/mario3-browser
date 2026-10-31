@@ -103,3 +103,22 @@ bonus/sky exporter added with exact pointer provenance. 53 engine / 79 browser
 checks pass locally, including an input-driven raccoon approach/landing/entry and
 keyboard, pad-Up, touch-Down and touch-Jump round trips. Goal remains active;
 other levels, world map, other suits and remaining mechanics are incomplete.
+
+0.8.0 continued reverse engineering: traced FireFlower handlers in PRG001 and
+projectile slots/throw/update/world/enemy/poof logic in PRG007. Added Fire power,
+flower-block progression (new logical kind 8), stationary flowers, input-edge
+shooting, two slots, ROM integer speed/gravity/bounce, poofs, offscreen removal,
+enemy fire-immunity and tumbling deaths. Added original Fire palette/frames and
+flower/fireball/poof CHR assets. Direct ROM frame-page inspection caught and fixed
+air throw page selection: PF34/35 are page 87, not 86. Added self-contained export
+tool/provenance. Original firing and suit-loss sounds rendered. PRG000 USA damage
+path confirms Fire/Raccoon->Super and immunity 71 hex; corrected sound/duration.
+Quick-start dropdown keeps the original 1-1 leaf layout unchanged while exposing
+Fire Mario. 64 engine / 88 browser checks pass, including real input-fired Goomba
+kill, two-slot/edge controls, flower progression and all three input methods.
+Goal remains active: more levels, map, enemy variants and other suits unfinished.
+
+0.8.0 validation also covers native keyboard navigation of the suit selector.
+Added a guard so its arrow keys no longer start the game. Screenshot review
+confirmed grounded/airborne Fire palette, projectile and flower assets, and phone
+menu layouts. Existing pipe/flight/audio/controller regressions remain green.

@@ -53,7 +53,7 @@ original sound driver and NES audio emulation. The game pauses when the tab lose
 
 This is a playable development prototype, **not the complete original game**.
 Physics and enemy behaviour are native reconstructions. The world map, bonus
-additional pipe transitions, fire/tanooki/frog/hammer suits and plant fireballs remain
+additional pipe transitions, tanooki/frog/hammer suits and plant fireballs remain
 unfinished. Power blocks release mushrooms for small Mario and leaves for Super Mario. Some layout decoration and
 enemy poses differ from the original.
 
@@ -231,3 +231,36 @@ flies to the high pipe with ordinary movement inputs, full return trip, coin
 collection/persistence, suit preservation, pause and keyboard/pad/touch pipe
 controls. This implements one original bonus area; other levels and original
 systems remain unfinished.
+
+## 0.8.0 Fire Mario and original weapon behaviour
+
+Choose **Fire Mario** in the quick-start selector and click **Try suit**. Tap Run
+(Shift on keyboard, X/B on a controller, RUN on touch) to shoot. Holding Run does
+not auto-fire. Ducking and carrying prevent firing; two projectile slots are
+available, including impact poofs. World 1-1 retains its original leaf blocks;
+flower blocks are supported by the engine for later level decoders rather than
+substituted into this course. Ordinary loose flowers grow small Mario first, and
+upgrade Super Mario to Fire Mario. Leaves replace fire power with raccoon power.
+
+Source: PRG007 PlayerProj_ThrowWeapon / PlayerProjs_UpdateAndDraw / fireball world
+and enemy hit routines: integer X velocity +/-3, initial Y velocity +3, gravity
+increments every fourth update up to +4, bounce Y velocity -3, 11-tick throwing
+animation, two slots and 13-tick impact poofs. Collision code remains a native
+reconstruction, including solid and one-way surfaces, fire-immunity support,
+enemy knockback and off-screen disposal. Projectiles freeze on pause and clear
+on death/area transitions.
+
+Fire palette 27/36/16, throwing frames, flower, fireball rotation and impact
+patterns are decoded from the ROM. `assets/fire-provenance.json` records offsets.
+`python tools/export-fire-assets.py your-rom.nes FCEUX.pal` regenerates them from
+the supplied ROM and base atlas. The frame page-offset table is read directly;
+air throws use CHR page 87. Added the original firing sound and corrected the
+USA power-loss sound and 71-hex immunity duration for Fire/Raccoon Mario. The USA
+ROM downgrades these powers to Super Mario before ordinary shrinking.
+
+Validation: 64 engine checks and 88 browser checks. Covers flower progression,
+input edges/two slots, integer projectile physics, bouncing/wall poofs, enemy
+hits/immunity, carried/duck restrictions, pause, damage/replacement, normal-input
+Goomba defeat, airborne animation and keyboard/gamepad/touch firing. Raccoon
+flight and original bonus-room round trips still pass. Other levels and systems
+remain unfinished; this is not the complete NES game.

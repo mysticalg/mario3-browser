@@ -10,3 +10,5 @@
 
 #fx-btn{flex:none;border-radius:6px;padding:6px 9px;font-size:11px;color:var(--mint)}#fx-btn[aria-pressed="true"]{background:#25413e;border-color:#497f73}.underbar .game-status{margin-left:auto}
 @media(max-width:360px){#start-menu{padding:10px;width:245px}#start-menu h2{font-size:25px;margin-bottom:8px}#start-menu .menu-kicker{margin-bottom:6px}#start-menu .menu-description{font-size:10px;line-height:1.4;margin-bottom:10px}#start-menu button{padding:8px 12px;font-size:10px}#start-menu .secondary{margin-top:6px}#start-menu .menu-foot{font-size:8px;margin-top:6px}}
+
+.practice-row{display:flex;gap:6px;margin-top:10px}.practice-row select{min-width:0;width:62%;border:1px solid #53606e;border-radius:7px;padding:10px;color:var(--text);background:#202731;font:inherit;font-size:12px}.practice-row .secondary{width:38%;margin-top:0} @media(max-width:360px){.practice-row{margin-top:6px}.practice-row select{font-size:10px;padding:6px}#start-menu .practice-row .secondary{margin-top:0}}

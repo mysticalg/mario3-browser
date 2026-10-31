@@ -19,6 +19,24 @@ const advance=ms=>page.evaluate(ms=>window.advanceTime(ms),ms);
 const seed=async fn=>page.evaluate(fn);
 try{
   await page.goto(base+'/?test=1');await page.evaluate(()=>window.gameReady);
+  await page.focus('#practice-suit');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+  check('suit selector supports native keyboard input without starting gameplay',(await page.inputValue('#practice-suit'))==='fire'&&(await snapshot()).screen==='menu');
+  await page.click('#raccoon-btn');
+  check('Fire Mario quick start equips the original power',(await snapshot()).player.fire&&(await snapshot()).player.big);
+  await page.keyboard.down('ShiftLeft');await advance(120);await page.keyboard.up('ShiftLeft');
+  check('keyboard Run fires once while held',(await snapshot()).fireballs.length===1);
+  await advance(30);await page.keyboard.down('ShiftLeft');await advance(30);await page.keyboard.up('ShiftLeft');
+  check('second Run tap uses the second projectile slot',(await snapshot()).fireballs.length===2);
+  await page.keyboard.press('KeyP');const pausedBalls=JSON.stringify((await snapshot()).fireballs);await advance(400);
+  check('pause freezes active fireballs',JSON.stringify((await snapshot()).fireballs)===pausedBalls);await page.keyboard.press('KeyP');
+  await page.screenshot({path:path.join(output,'fire-mario.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game;g.restart(false);Object.assign(g.player,{big:true,h:32,y:176});g.power={kind:'flower',x:24,y:176,vy:0,emerging:0};g.updatePower();g.player.growing=0;g.player.invul=0;g.power={kind:'flower',x:90,y:192,vy:0,emerging:0};});await advance(30);
+  check('collecting a flower upgrades Super Mario to Fire Mario',(await snapshot()).player.fire);
+  await page.screenshot({path:path.join(output,'fire-flower.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game;g.power=null;g.player.invul=0;Object.assign(g.player,{y:112,vy:-3,grounded:false,oldRun:false});});await page.keyboard.down('ShiftLeft');await advance(30);await page.keyboard.up('ShiftLeft');
+  check('Fire Mario can throw while airborne',(await snapshot()).player.firing>0&&(await snapshot()).fireballs.length>0);
+  await page.screenshot({path:path.join(output,'fire-airborne.png'),fullPage:true});
+  await page.reload();await page.evaluate(()=>window.gameReady);
   await page.click('#raccoon-btn');await advance(30);
   check('raccoon quick start equips suit and flight timer',(await snapshot()).player.raccoon&&(await snapshot()).player.flight>0);
   for(let n=0;n<14;n++){await page.keyboard.down('Space');await advance(80);await page.keyboard.up('Space');await advance(40);}
@@ -79,8 +97,8 @@ try{
   const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
   check('original ROM music decoded and playing',audioState.state==='running'&&audioState.scheduled>0&&audioState.source==='original-rom');
   const renderedAudio=await page.evaluate(async()=>{
-    const {GameAudio}=await import('./audio.js?v=0.7.0');const results=[];
-    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning','tail']){
+    const {GameAudio}=await import('./audio.js?v=0.8.0');const results=[];
+    for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning','tail','fire','suit-loss']){
       const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;await a.load();a.effect(name);
       const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;
       for(const sample of data){energy+=sample*sample;peak=Math.max(peak,Math.abs(sample));}
@@ -88,7 +106,7 @@ try{
     }
     return results;
   });
-  check('all 16 original effects and fanfares render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
+  check('all 18 original effects and fanfares render audible waveforms without clipping',renderedAudio.every(a=>a.rms>.001&&a.peak<.95));
   const originalMusic=await page.evaluate(()=>{
     const a=window.__test.audio,b=a.buffers.get('overworld'),h=a.buffers.get('overworld-hurry');
     return {duration:b.duration,hurryDuration:h.duration,loop:a.manifest.files.overworld.loop,source:a.musicNode?.buffer===b};
@@ -141,6 +159,8 @@ try{
   check('controller D-pad Up enters ceiling pipe',(await snapshot()).state==='pipe');
   await seed(()=>window.__pads[0].buttons[12].pressed=false);await advance(900);
   check('controller-driven pipe trip returns to main level',(await snapshot()).area==='main');
+  await seed(()=>{const g=window.__test.game;g.restart(false);Object.assign(g.player,{fire:true,big:true,h:32,y:176});window.__pads[0].buttons[2].pressed=true;});await advance(30);
+  check('controller Run button fires a fireball',(await snapshot()).fireballs.length===1);await seed(()=>window.__pads[0].buttons[2].pressed=false);await advance(30);
   await seed(()=>{window.__pads[0].buttons[0].pressed=false;window.__pads[0].buttons[9].pressed=true;});await advance(30);
   check('controller Start pauses',(await snapshot()).paused);
   const held=(await snapshot()).frame;await advance(300);check('held Start does not toggle repeatedly',(await snapshot()).paused&&(await snapshot()).frame===held);
@@ -239,6 +259,9 @@ try{
   await mobile.evaluate(()=>Object.assign(window.__test.game.player,{x:360,y:64,vy:-2,vx:0,grounded:false,oldJump:false}));
   await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:jumpBox.x+jumpBox.width/2,y:jumpBox.y+jumpBox.height/2,id:14}]});await mobile.evaluate(()=>window.advanceTime(30));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await mobile.evaluate(()=>window.advanceTime(900));
   check('touch Jump exits the bonus through its ceiling pipe',await mobile.evaluate(()=>window.__test.game.area==='main'));
+  await mobile.evaluate(()=>window.__test.start(false,'fire'));const fireRun=await mobile.locator('[data-control="run"]').boundingBox();
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:fireRun.x+fireRun.width/2,y:fireRun.y+fireRun.height/2,id:15}]});await mobile.evaluate(()=>window.advanceTime(30));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  check('touch RUN fires as Fire Mario',await mobile.evaluate(()=>window.__test.game.fireballs.length===1));await mobile.screenshot({path:path.join(output,'mobile-fire.png'),fullPage:true});
   await mobile.evaluate(()=>window.__test.start(false));
   const runBox=await mobile.locator('[data-control="run"]').boundingBox();
   const rightPoint={x:rightBox.x+rightBox.width/2,y:rightBox.y+rightBox.height/2,id:20},runPoint={x:runBox.x+runBox.width/2,y:runBox.y+runBox.height/2,id:21};
