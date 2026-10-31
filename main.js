@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.8.0';
-import {Parallax} from './parallax.js?v=0.8.0';
-import {GameAudio} from './audio.js?v=0.8.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.8.0';
-import {ControllerInput} from './input.js?v=0.8.0';
-import {pixelText} from './pixel-font.js?v=0.8.0';
-const VERSION='0.8.0';
+import {VisualEffects} from './effects.js?v=0.8.1';
+import {Parallax} from './parallax.js?v=0.8.1';
+import {GameAudio} from './audio.js?v=0.8.1';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.8.1';
+import {ControllerInput} from './input.js?v=0.8.1';
+import {pixelText} from './pixel-font.js?v=0.8.1';
+const VERSION='0.8.1';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -118,6 +118,7 @@ function render(alpha=1){
     if(e.kind===3){id=283;h=e.h;}
     if(e.state===2||e.state===3){id=286;h=16;}
     if(e.state<0){id=e.deathStyle==='tumble'?([2,5].includes(e.kind)?286:e.kind===3?283:272):274;h=e.deathStyle==='tumble'?e.h:16;}
+    if(e.red&&[284,285,286].includes(id))id+=24;
     const ex=blend(before?.x,e.x),ey=blend(before?.y,e.y);
     const shake=e.state===2&&e.wake<80&&(e.wake&[2,2,4,8,16,16][Math.floor(e.wake/16)])?1:0;
     if(e.deathStyle==='tumble'&&e.state<0){ctx.save();ctx.translate(Math.round(ex-cam),Math.round(ey+h));ctx.scale(1,-1);ctx.drawImage(atlas,(id%32)*16,Math.floor(id/32)*32,16,h,0,0,16,h);ctx.restore();}
@@ -281,7 +282,7 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.8.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
+  fetch(new URL('./assets/level.json?v=0.8.1',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
 ]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof])=>{
   fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
   bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];

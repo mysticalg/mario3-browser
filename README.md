@@ -264,3 +264,16 @@ hits/immunity, carried/duck restrictions, pause, damage/replacement, normal-inpu
 Goomba defeat, airborne animation and keyboard/gamepad/touch firing. Raccoon
 flight and original bonus-room round trips still pass. Other levels and systems
 remain unfinished; this is not the complete NES game.
+
+## 0.8.1 ROM enemy identities and red Koopas
+
+Decoded all 15 World 1-1 object records at ROM file offset C537 (header,
+14 enemies, end card and terminator), retaining their raw IDs and coordinates.
+The two 6D records now select red Koopas with a red shell palette. PRG004
+ObjNorm_RedTroopa supplies the half-pixel walking speed and ledge turnaround;
+green ground Koopas also use the original normal half-pixel speed. Shell colour
+survives stomping, carrying, kicking and waking. Exporter:
+`python tools/export-w101-enemies.py your-rom.nes FCEUX.pal`.
+Validation: 67 engine tests, 89 browser checks, inspected red Koopa screenshot
+and unmodified skill client raccoon gameplay. Enemy variants, plant attacks,
+additional levels, slopes and world map still need reconstruction.

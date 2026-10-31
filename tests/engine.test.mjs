@@ -202,3 +202,23 @@ test('area changes preserve Fire Mario but clear projectiles; death clears both'
 test('holding Run during a power-up freeze does not queue a delayed shot',()=>{
  const g=fireFixture();g.player.growing=18;steps(g,20,{run:true});assert.equal(g.fireballs.length,0);g.update();g.update({run:true});assert.equal(g.fireballs.length,1);
 });
+
+test('ROM object stream distinguishes both red Koopas and preserves their positions',()=>{
+ const g=new Game(level),red=g.enemies.filter(e=>e.red);
+ assert.deepEqual(red.map(e=>[e.romId,e.x]),[[0x6d,0x24*16],[0x6d,0x83*16]]);
+ assert.equal(level.objectProvenance.streamOffset,0xc537);
+ assert.ok(red.every(e=>e.vx===-.5));
+ g.switchArea('bonus');g.switchArea('main');assert.equal(g.enemies.filter(e=>e.red).length,2);
+});
+test('red Koopa turns at a ledge while green Koopa walks off',()=>{
+ function ledge(red,state=1){const g=fixture();g.map.fill(0);g.patch(8,13,1,1);const e={kind:2,red,x:140,y:176,h:32,vx:.5,vy:0,state,cooldown:0};g.enemies=[e];g.player.x=220;g.player.y=20;return [g,e];}
+ const [r,re]=ledge(true),[g,ge]=ledge(false);
+ for(let i=0;i<45;i++){r.updateEnemies(0);g.updateEnemies(0);}
+ assert.ok(re.vx<0);assert.ok(re.x<142);assert.equal(re.y,176);assert.ok(ge.y>176);
+ const [s,se]=ledge(true,3);for(let i=0;i<45;i++)s.updateEnemies(0);assert.ok(se.x>150);assert.ok(se.y>176);
+});
+test('red shell retains its colour through stomp and wake',()=>{
+ const g=fixture(),e=g.enemies.find(e=>e.red);Object.assign(e,{state:1,x:100,y:176,h:32,vx:0,vy:0});
+ Object.assign(g.player,{x:100,y:164,vy:3});g.updateEnemies(175);assert.equal(e.state,2);assert.equal(e.red,true);
+ e.wake=1;e.cooldown=0;g.player.x=200;g.updateEnemies(0);assert.equal(e.state,1);assert.equal(e.red,true);assert.equal(Math.abs(e.vx),.5);
+});

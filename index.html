@@ -7,12 +7,12 @@
   <meta name="description" content="Play the browser port of the Mario 3 RISC OS prototype. Keyboard, touch and gamepad controls.">
   <title>Mario 3 · Browser demo</title>
   <link rel="icon" href="assets/icon.png">
-  <link rel="stylesheet" href="style.css?v=0.8.0">
+  <link rel="stylesheet" href="style.css?v=0.8.1">
 </head>
 <body>
   <main id="app">
     <header class="topbar">
-      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo 0.8.0</p></div></div>
+      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo 0.8.1</p></div></div>
       <div class="tools">
         <button id="music-btn" aria-label="Mute music" title="Music (M)" aria-pressed="true">♫<span>Music on</span></button>
         <button id="sound-btn" aria-label="Mute sound" title="Sound" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></svg><span>Sound on</span></button>
@@ -60,6 +60,6 @@
     <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Raccoon flight, Fire Mario, tail attacks and generated parallax scenery are included. The original World 1-1 bonus room is included; other areas and suits remain in development.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs, Down ducks. Hold Run to carry a stationary shell and release to throw. P pauses, R restarts, F toggles fullscreen. V toggles glow, shadows, trails and particles. <strong>Fire Mario:</strong> select Fire Mario and Try suit to test. Tap Run to shoot; two fireballs can be active. The original World 1-1 leaf blocks are preserved. <strong>Raccoon:</strong> collect a leaf as Super Mario, run until P fills, jump, then tap Jump to flap. Tap Jump while falling to flutter, and tap Run for a tail attack. The quick-start button begins airborne with the meter charged. Fly to the high pipe near the end and hold Down to find the bonus room; jump up into its ceiling exit pipe to return. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Down ducks, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Sound starts when you play. The Sound button mutes all audio; The Music button (or M) controls the original ROM music separately. Music and effects are rendered from the supplied ROM using its original sound driver and NES audio emulation.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
     <footer><span>NES → RISC OS → BROWSER</span><a id="source-link" href="https://github.com/mysticalg/mario3-browser" target="_blank" rel="noreferrer">Source on GitHub ↗</a></footer>
   </main>
-  <script type="module" src="main.js?v=0.8.0"></script>
+  <script type="module" src="main.js?v=0.8.1"></script>
 </body>
 </html>

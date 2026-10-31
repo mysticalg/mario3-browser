@@ -122,3 +122,13 @@ Goal remains active: more levels, map, enemy variants and other suits unfinished
 Added a guard so its arrow keys no longer start the game. Screenshot review
 confirmed grounded/airborne Fire palette, projectile and flower assets, and phone
 menu layouts. Existing pipe/flight/audio/controller regressions remain green.
+
+0.8.1 continued reverse engineering: decoded original W101 object list C537,
+matched 14 enemies to existing coordinates, retained end card and full provenance.
+Restored red identity/palette for both 6D Koopas. Read PRG004 RedTroopa ledge
+routine and GroundTroop_XVel; added half-pixel normal walking and red ledge
+turnaround while leaving kicked shells free to fall. Consolidated area enemy
+creation so metadata persists across bonus visits. Added self-contained exporter.
+67 engine tests / 89 browser checks pass locally. Inspected red Koopa rendering
+and unmodified skill client gameplay screenshot. Remaining: firing plant variants,
+full level decoder integration, hills slope physics, more levels and world map.

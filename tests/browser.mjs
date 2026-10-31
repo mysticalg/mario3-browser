@@ -19,6 +19,10 @@ const advance=ms=>page.evaluate(ms=>window.advanceTime(ms),ms);
 const seed=async fn=>page.evaluate(fn);
 try{
   await page.goto(base+'/?test=1');await page.evaluate(()=>window.gameReady);
+  await seed(()=>{const g=window.__test.game;const reds=g.enemies.filter(e=>e.red);if(reds.length!==2)throw Error('Missing ROM red Koopas');Object.assign(g.player,{x:460,y:192});window.__test.start(false);Object.assign(g.player,{x:460,y:192});});
+  await advance(30);await page.screenshot({path:path.join(output,'red-koopa.png'),fullPage:true});
+  check('both ROM red Koopas have their original object IDs',await seed(()=>window.__test.game.enemies.filter(e=>e.red).every(e=>e.romId===0x6d)));
+  await page.reload();await page.evaluate(()=>window.gameReady);
   await page.focus('#practice-suit');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
   check('suit selector supports native keyboard input without starting gameplay',(await page.inputValue('#practice-suit'))==='fire'&&(await snapshot()).screen==='menu');
   await page.click('#raccoon-btn');

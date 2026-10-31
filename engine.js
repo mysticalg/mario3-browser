@@ -14,13 +14,16 @@ export class Game {
     this.events = [];
     this.reset();
   }
+  createEnemies(level) {
+    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:kind===2?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta};});
+  }
   reset() {
     this.area='main';this.areaStates=new Map();this.activeLevel=this.level;
     this.map = Uint8Array.from(this.level.solid);
     this.tiles = Uint8Array.from(this.level.tiles);
     this.patches = new Map();
     this.collectibles = this.level.coins.map(([x,y]) => ({x,y,got:false}));
-    this.enemies = this.level.objects.map(([kind,x,y]) => ({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
+    this.enemies = this.createEnemies(this.level);
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
     this.state = 'playing';
     this.player.carrying=-1;this.player.runHeld=false;
@@ -48,7 +51,7 @@ export class Game {
     if(saved)Object.assign(this,saved);
     else{
       const l=this.activeLevel;this.map=Uint8Array.from(l.solid);this.tiles=Uint8Array.from(l.tiles);this.patches=new Map();
-      this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=l.objects.map(([kind,x,y])=>({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
+      this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
     this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];
@@ -255,7 +258,7 @@ export class Game {
         if(e.wake===0){
           if(held)p.carrying=-1;
           if(this.wall(e.x,e.y-16,32)){e.state=-14;this.score+=100;}
-          else{e.state=1;e.h=32;e.y-=16;e.vx=p.x<e.x?-.65:.65;e.cooldown=0;}
+          else{e.state=1;e.h=32;e.y-=16;e.vx=p.x<e.x?-.5:.5;e.cooldown=0;}
           this.event('shell-woke');
         }
       }
@@ -271,6 +274,9 @@ export class Game {
         e.y=e.baseY-rise;e.h=rise;
       }else{
         const previous=e.y+e.h;
+        // PRG004 red Troopa: turn once when floor contact is lost,
+        // then apply the reversed velocity twice to undo the step.
+        const oldX=e.x,wasSupported=this.floor(e.x,previous-.5,previous+.5);
         if(e.state!==2){
           const wallX=e.x+e.vx+(e.vx>0?13:2),wallY=e.y+e.h/2;
           const tx=Math.floor(wallX/16),ty=Math.floor(wallY/16);
@@ -278,6 +284,7 @@ export class Game {
             this.head(tx,ty,true);e.vx=-e.vx;this.sound('bump');this.event('shell-block');
           }else if(this.moveX(e,e.vx))e.vx=-e.vx;
         }
+        if(e.red&&e.kind===2&&e.state===1&&wasSupported&&!this.floor(e.x,previous-.5,previous+.5)){e.vx=-e.vx;e.x=oldX+e.vx;}
         e.vy=Math.min(e.vy+.3,6);let ny=e.y+e.vy;
         if(e.vy>=0&&this.floor(e.x,previous,ny+e.h)){
           ny=Math.floor((ny+e.h)/16)*16-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
