@@ -75,3 +75,17 @@ and raccoon motion trails. Added explicit quick-start flight button and controls
 and CDP touch flight, loop audio and old full-course protected demo. Ran unmodified
 skill Playwright client and inspected raccoon, flight, generated landscape and
 mobile screenshots. Remaining: bonus sky areas, other suits, exact NES timing.
+
+0.6.1 continuing reverse engineering: inspected original shell-state setup and
+object timer processing in PRG000. Shell wake timer is FF, decremented every other
+frame normally, every fourth while held, then every frame below 60 hex. Shake
+threshold/bit masks follow Object_SetShakeAwakeTimer / PRG000_CBB4. Implemented
+wake-up towards Mario, release when held, restoration of body height, and ceiling
+handling. Added moving-shell brick/question-block interactions (independent of
+Mario size) and enemies bumped off blocks from below. Added 4 focused engine and
+2 browser checks. Goal remains active: bonus rooms, additional level decoders and
+other original systems are still incomplete.
+
+0.6.1 validation: 47 engine tests and 68 local browser checks pass. Inspected
+shell shake/brick-impact screenshots and the unmodified skill client gameplay
+capture. Corrected opaque sky patches left by removed temporary blocks.

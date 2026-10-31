@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.6.0';
-import {Parallax} from './parallax.js?v=0.6.0';
-import {GameAudio} from './audio.js?v=0.6.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.6.0';
-import {ControllerInput} from './input.js?v=0.6.0';
-import {pixelText} from './pixel-font.js?v=0.6.0';
-const VERSION='0.6.0';
+import {VisualEffects} from './effects.js?v=0.6.1';
+import {Parallax} from './parallax.js?v=0.6.1';
+import {GameAudio} from './audio.js?v=0.6.1';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.6.1';
+import {ControllerInput} from './input.js?v=0.6.1';
+import {pixelText} from './pixel-font.js?v=0.6.1';
+const VERSION='0.6.1';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -101,7 +101,7 @@ function render(alpha=1){
     const id=game.tiles[off],bump=game.bumps.get(off);
     if(id!==0x80)drawSprite(id,(off%256)*16-cam,Math.floor(off/256)*16-(bump?Math.sin(bump.age/10*Math.PI)*3:0));
   }
-  for(const [off,patch] of game.patches)if(!dynamicCells.has(off))drawSprite(patch.id,patch.tx*16-cam,patch.ty*16,16);
+  for(const [off,patch] of game.patches)if(!dynamicCells.has(off)&&patch.id!==0x80)drawSprite(patch.id,patch.tx*16-cam,patch.ty*16,16);
   fx.background(ctx,game,cam);
   for(const c of game.collectibles)if(!c.got)drawSprite(276+Math.floor(game.frame/6)%4,c.x-cam,c.y);
   for(let n=0;n<game.enemies.length;n++){
@@ -113,7 +113,8 @@ function render(alpha=1){
     if(e.state===2||e.state===3){id=286;h=16;}
     if(e.state<0){id=274;h=16;}
     const ex=blend(before?.x,e.x),ey=blend(before?.y,e.y);
-    actor(id,ex-cam,ey,h);
+    const shake=e.state===2&&e.wake<80&&(e.wake&[2,2,4,8,16,16][Math.floor(e.wake/16)])?1:0;
+    actor(id,ex-cam+shake,ey,h);
     if(e.kind===4&&e.state>0)drawSprite(287,ex-cam,ey-6,16);
   }
   if(game.power){
@@ -259,7 +260,7 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.6.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png')
+  fetch(new URL('./assets/level.json?v=0.6.1',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png')
 ]).then(([level,background,sprites,raccoon,leaf,...layers])=>{
   raccoonArt=raccoon;leafArt=leaf;parallax=new Parallax(layers);
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;

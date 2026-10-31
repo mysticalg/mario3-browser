@@ -88,11 +88,18 @@ export class Game {
     this.patches.set(off,{tx,ty,id});
   }
   pop(x,y,text) { this.popup={x,y,text,ticks:32}; }
-  head(tx,ty) {
+  bumpEnemies(tx,ty){
+    for(const e of this.enemies){
+      if(e.state<=0||e.kind===3||e.x+14<=tx*16||e.x+2>=(tx+1)*16||Math.abs(e.y+e.h-ty*16)>4)continue;
+      e.state=-14;e.vy=-3;this.score+=100;this.sound('kick');this.event('block-bumped-enemy');
+    }
+  }
+  head(tx,ty,force=false) {
     if(tx<0||tx>=256||ty<0||ty>=16)return;
     const kind=this.map[ty*256+tx], p=this.player;
+    if([2,3,4,6,7].includes(kind))this.bumpEnemies(tx,ty);
     if(kind===2) {
-      if(p.big) {
+      if(p.big||force) {
         this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound('break');this.event('brick-broken');
         for(let q=0;q<4;q++)this.effects.push({kind:'brick',x:tx*16+(q%2)*8,y:ty*16+Math.floor(q/2)*8,vx:q%2?1.5:-1.5,vy:q<2?-4:-2.8,gravity:.2,life:36,q});
       }
@@ -161,7 +168,18 @@ export class Game {
     const p=this.player;
     for(let i=0;i<this.enemies.length;i++){
       const e=this.enemies[i];
-      if(i===p.carrying){e.x=p.x+(p.facing==='right'?12:-12);e.y=p.y+p.h-18;continue;}
+      const held=i===p.carrying;
+      if(e.state===2&&(held||Math.abs(e.x-p.x)<360)){
+        e.wake ??= 255;
+        if(e.wake<96||this.frame%(held?4:2)===0)e.wake=Math.max(0,e.wake-1);
+        if(e.wake===0){
+          if(held)p.carrying=-1;
+          if(this.wall(e.x,e.y-16,32)){e.state=-14;this.score+=100;}
+          else{e.state=1;e.h=32;e.y-=16;e.vx=p.x<e.x?-.65:.65;e.cooldown=0;}
+          this.event('shell-woke');
+        }
+      }
+      if(held&&p.carrying===i){e.x=p.x+(p.facing==='right'?12:-12);e.y=p.y+p.h-18;continue;}
       if(e.state<0)e.state++;
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
@@ -173,7 +191,13 @@ export class Game {
         e.y=e.baseY-rise;e.h=rise;
       }else{
         const previous=e.y+e.h;
-        if(e.state!==2&&this.moveX(e,e.vx))e.vx=-e.vx;
+        if(e.state!==2){
+          const wallX=e.x+e.vx+(e.vx>0?13:2),wallY=e.y+e.h/2;
+          const tx=Math.floor(wallX/16),ty=Math.floor(wallY/16);
+          if(e.state===3&&this.hard(wallX,wallY)&&[2,3,4,6,7].includes(this.cell(wallX,wallY))){
+            this.head(tx,ty,true);e.vx=-e.vx;this.sound('bump');this.event('shell-block');
+          }else if(this.moveX(e,e.vx))e.vx=-e.vx;
+        }
         e.vy=Math.min(e.vy+.3,6);let ny=e.y+e.vy;
         if(e.vy>=0&&this.floor(e.x,previous,ny+e.h)){
           ny=Math.floor((ny+e.h)/16)*16-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
@@ -187,8 +211,8 @@ export class Game {
           if(e.kind===4)e.kind=1;
           else if(e.kind===5)e.kind=2;
           else if(e.kind===2){
-            if(e.state===1){e.state=2;e.y+=16;e.h=16;e.cooldown=15;}
-            else if(e.state===3){e.state=2;e.cooldown=15;}
+            if(e.state===1){e.state=2;e.y+=16;e.h=16;e.cooldown=15;e.wake=255;}
+            else if(e.state===3){e.state=2;e.cooldown=15;e.wake=255;}
             else{e.state=3;e.vx=5;e.cooldown=15;}
           }else e.state=-14;
           this.event('stomp');

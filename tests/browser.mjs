@@ -30,6 +30,14 @@ try{
   });
   check('three generated layers scroll at distinct parallax speeds',layers.a.length===3&&layers.b[0].offset-layers.a[0].offset<layers.b[1].offset-layers.a[1].offset&&layers.b[1].offset-layers.a[1].offset<layers.b[2].offset-layers.a[2].offset);
   await page.reload();await page.evaluate(()=>window.gameReady);
+  await page.click('#start-btn');
+  await seed(()=>{const g=window.__test.game;g.enemies.forEach(e=>e.state=0);Object.assign(g.enemies[0],{kind:2,state:2,x:110,y:192,h:16,vx:0,vy:0,wake:2,cooldown:0});});
+  await advance(1000/60);await page.screenshot({path:path.join(output,'shell-shaking.png'),fullPage:true});await advance(1000/60);
+  check('shell wakes into a full-height Koopa in browser',(await snapshot()).enemies.some(e=>e.kind===2&&e.state===1&&e.h===32));
+  await seed(()=>{const g=window.__test.game;Object.assign(g.enemies[0],{kind:2,state:3,x:143,y:192,h:16,vx:5,vy:0});g.patch(10,12,0x67,2);});await advance(1000/60);
+  check('shell impacts destroy bricks in browser',await page.evaluate(()=>window.__test.game.map[12*256+10]===0));
+  await page.screenshot({path:path.join(output,'shell-brick-impact.png'),fullPage:true});
+  await page.reload();await page.evaluate(()=>window.gameReady);
   await page.screenshot({path:path.join(output,'desktop-menu.png'),fullPage:true});
   check('start menu displayed',(await snapshot()).screen==='menu');
   const box=await page.locator('canvas').boundingBox();check('desktop game uses a readable large viewport',box.width>=700&&box.height>=500);
@@ -53,7 +61,7 @@ try{
   const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
   check('original ROM music decoded and playing',audioState.state==='running'&&audioState.scheduled>0&&audioState.source==='original-rom');
   const renderedAudio=await page.evaluate(async()=>{
-    const {GameAudio}=await import('./audio.js?v=0.6.0');const results=[];
+    const {GameAudio}=await import('./audio.js?v=0.6.1');const results=[];
     for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning','tail']){
       const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;await a.load();a.effect(name);
       const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;

@@ -118,3 +118,22 @@ test('damage removes raccoon power before shrinking Mario and cancels flight',()
 test('sky flight has a camera, altitude limit and pause freezes flight timer',()=>{
  const g=runway();Object.assign(g.player,{big:true,raccoon:true,h:32,y:-319,vy:-3,grounded:false,flight:100,wag:16});g.update({jump:true});assert.equal(g.player.y,-320);assert.ok(g.cameraY<0);g.paused=true;const time=g.player.flight;steps(g,50);assert.equal(g.player.flight,time);
 });
+
+test('stationary shells use the ROM wake timer cadence and restore Koopa height',()=>{
+ const g=runway(),e=g.enemies[0];Object.assign(e,{kind:2,state:2,x:120,y:192,h:16,vx:0,vy:0,wake:255});
+ for(let i=1;i<=414;i++){g.frame=i;g.updateEnemies(208);}assert.equal(e.state,2);assert.equal(e.wake,1);
+ g.frame=415;g.updateEnemies(208);assert.equal(e.state,1);assert.equal(e.h,32);assert.equal(e.y,176);assert.ok(e.vx<0);
+});
+test('held shells count more slowly but wake in Mario hands',()=>{
+ const g=runway(),e=g.enemies[0];Object.assign(e,{kind:2,state:2,x:36,y:192,h:16,vx:0,vy:0,wake:255});g.player.carrying=0;
+ for(let i=1;i<=734;i++){g.frame=i;g.updateEnemies(208);}assert.equal(g.player.carrying,0);assert.equal(e.wake,1);
+ g.frame=735;g.updateEnemies(208);assert.equal(g.player.carrying,-1);assert.equal(e.state,1);
+});
+test('moving shells break bricks even while Mario is small and trigger question blocks',()=>{
+ const g=runway(),e=g.enemies[0];Object.assign(e,{kind:2,state:3,x:143,y:192,h:16,vx:5,vy:0});g.patch(10,12,0x67,2);
+ g.updateEnemies(208);assert.equal(g.map[12*256+10],0);assert.ok(e.vx<0);
+ Object.assign(e,{state:3,x:143,y:192,vx:5});g.patch(10,12,0x63,3);g.updateEnemies(208);assert.equal(g.coins,1);assert.equal(g.map[12*256+10],1);
+});
+test('hitting a block from below defeats an enemy standing on it',()=>{
+ const g=runway(),e=g.enemies[0];g.patch(10,10,0x67,2);Object.assign(e,{kind:1,state:1,x:160,y:144,h:16,vx:0,vy:0});g.head(10,10);assert.ok(e.state<0);assert.equal(g.score,100);assert.equal(g.map[10*256+10],2);assert.ok(g.events.some(e=>e.type==='block-bumped-enemy'));
+});

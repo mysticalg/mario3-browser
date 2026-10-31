@@ -193,3 +193,13 @@ flight expiry, flutter, tail/enemy/block interaction, damage, sky camera, keyboa
 simulated pad and real browser touch input. The skill Playwright client was run
 through raccoon gameplay and screenshots were inspected. Flight is a native
 reconstruction and is not cycle-exact NES gameplay.
+
+## 0.6.1 shell lifecycle and block interactions
+
+Shelled Koopas shake and wake up, including while carried. The timer cadence and
+shake masks follow PRG000 of the original disassembly: FF initial timer, half-rate
+countdown on the ground, quarter-rate while held, full-rate below 60 hex. Waking
+restores Koopa height and faces Mario. Shells now break bricks and hit question
+blocks independently of Mario's size; hitting blocks from below also defeats an
+enemy standing on top. This continues the reverse-engineering work; bonus areas
+and other original gameplay systems remain incomplete.
