@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.9.0';
-import {Parallax} from './parallax.js?v=0.9.0';
-import {GameAudio} from './audio.js?v=0.9.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.9.0';
-import {ControllerInput} from './input.js?v=0.9.0';
-import {pixelText} from './pixel-font.js?v=0.9.0';
-const VERSION='0.9.0';
+import {VisualEffects} from './effects.js?v=0.10.0';
+import {Parallax} from './parallax.js?v=0.10.0';
+import {GameAudio} from './audio.js?v=0.10.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.10.0';
+import {ControllerInput} from './input.js?v=0.10.0';
+import {pixelText} from './pixel-font.js?v=0.10.0';
+const VERSION='0.10.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -18,6 +18,7 @@ let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStep
 let padState=null,controllerLabel='';
 let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles,fireArt,flowerArt,ballArt,poofArt;
 const dynamicCells=new Set();
+const courses=new Map();const cleared=new Set(JSON.parse(localStorage.getItem('mario3-cleared')||'[]'));let miniStamp='';
 const testMode=new URLSearchParams(location.search).has('test');
 
 function tone(name){audio.effect(name);}
@@ -29,6 +30,31 @@ function start(auto=false,raccoon=false){
   if(raccoon==='fire'){Object.assign(game.player,{fire:true,big:true,h:32,y:176});game.event('fire-practice');}
   else if(raccoon){Object.assign(game.player,{raccoon:true,big:true,h:32,y:144,vy:-2.7,grounded:false,powerMeter:60,flight:256,wag:16});game.event('raccoon-practice');}
   focusGame();syncUI();render();
+}
+function selectCourse(id,preserve=false){
+  const course=courses.get(id);if(!course)return;
+  game.setCourse(course.level,preserve);world=course.world;skyTiles=course.tiles;
+  dynamicCells.clear();for(let off=0;off<game.level.solid.length;off++)if([2,3,4,6,7,8,10].includes(game.level.solid[off]))dynamicCells.add(off);
+  previousVisual=null;miniStamp='';uiStamp='';fx.reset();audio.reset();started=true;accumulator=0;keyboard.clear();touch.clear();unlockAudio();focusGame();syncUI();render();
+}
+function startDemo(){if(game.course==='1-3')selectCourse('1-1');start(true);}
+function nextCourse(){const ids=['1-1','1-2','1-3'],next=ids[ids.indexOf(game.course)+1];if(next)selectCourse(next,true);else start(false);}
+function minimap(){
+  const level=game.activeLevel,key=game.course+game.area;
+  const width=game.areaWidth,scale=1000/width;
+  if(miniStamp!==key){
+    miniStamp=key;let terrain='';
+    for(let row=0;row<14;row++)for(let col=0;col<Math.ceil(width/16);col++){
+      const kind=level.solid[row*256+col];if(!kind)continue;
+      terrain+=`<rect x="${col*16*scale}" y="${row*4+8}" width="${Math.max(1,16*scale)}" height="4" stroke="none" fill="${kind===9?'#7fd852':kind===5?'#83cdeb':'#3c8b58'}"/>`;
+    }
+    $('mini-map').innerHTML=`<title>Course ${game.course} minimap</title>${terrain}<rect id="mini-view" y="1" height="68" fill="#fff1" stroke="#ffffff70"/><circle id="mini-player" r="5" fill="#ff695d" stroke="#fff" stroke-width="2"/>`;
+  }
+  $('mini-player').setAttribute('cx',(game.player.x+8)*scale);$('mini-player').setAttribute('cy',clamp(game.player.y/4+8,4,66));
+  $('mini-view').setAttribute('x',game.camera*scale);$('mini-view').setAttribute('width',320*scale);
+  $('course-label').textContent=`World ${game.course}`;
+  $('mini-caption').textContent=`World ${game.course}${game.area==='bonus'?' · bonus room':''} · ${Math.round(game.player.x/(width-36)*100)}%`;
+  for(const button of document.querySelectorAll('[data-course]')){button.setAttribute('aria-pressed',String(button.dataset.course===game.course));button.textContent=`${cleared.has(button.dataset.course)?'✓ ':''}World ${button.dataset.course}`;}
 }
 function pause(){
   if(!game||!started)return;
@@ -46,6 +72,7 @@ function pollController(){
   if(label!==controllerLabel){controllerLabel=label;$('pad-status').textContent=label;$('pad-dot').classList.toggle('connected',!!state);}
   if(!game)return;
   if(!started){if(edges.start||edges.jump)start(false);return;}
+  if(game.state==='complete'&&edges.jump){nextCourse();return;}
   if(edges.start){pause();return;}
   if(edges.restart){start(false);return;}
   if(!game.paused&&state&&(state.left||state.right||state.jump||state.run||state.down||state.up))game.auto=false;
@@ -178,7 +205,7 @@ function render(alpha=1){
     else actor(playerId,px-cam,drawY,drawHeight);
   }
   ctx.restore();
-  if(game.state!=='complete')drawSprite(280+Math.floor(game.frame/8)%3,2680-cam,120);
+  if(game.state!=='complete'&&game.area==='main')drawSprite(280+Math.floor(game.frame/8)%3,game.goal.x-cam,game.goal.y);
   fx.foreground(ctx,cam);
   if(game.popup)text(game.popup.text,Math.floor(game.popup.x-cam),Math.floor(game.popup.y),7,'#fcfcfc','left',true);
   ctx.translate(0,cy);
@@ -188,7 +215,7 @@ function render(alpha=1){
   }
   ctx.restore();
   ctx.fillStyle='#10151c';ctx.fillRect(0,224,320,32);
-  text(game.area==='bonus'?'BONUS':'WORLD 1-1',7,236);text(`M ×${game.lives}`,91,236);text(String(game.score).padStart(6,'0'),157,236);text(`$${String(game.coins).padStart(2,'0')}`,276,236);
+  text(game.area==='bonus'?'BONUS':`WORLD ${game.course}`,7,236);text(`M ×${game.lives}`,91,236);text(String(game.score).padStart(6,'0'),157,236);text(`$${String(game.coins).padStart(2,'0')}`,276,236);
   text(`TIME ${String(game.clock).padStart(3,'0')}`,7,249,8,'#bec9d7');
   const meter=clamp(Math.floor(p.powerMeter/60*7),0,7);
   text('P '+'>'.repeat(meter)+'·'.repeat(7-meter),91,249,8,p.flight>0||meter===7?'#ffe28b':'#bec9d7');
@@ -197,10 +224,13 @@ function render(alpha=1){
 }
 function syncUI(){
   if(!game)return;
-  const stamp=[started,game.state,game.area,game.paused,game.auto,game.score,game.coins].join('|');
+  if(game.state==='complete'&&!cleared.has(game.course)){cleared.add(game.course);localStorage.setItem('mario3-cleared',JSON.stringify([...cleared]));}
+  minimap();
+  const stamp=[started,game.course,game.state,game.area,game.paused,game.auto,game.score,game.coins].join('|');
   if(stamp===uiStamp)return;
   uiStamp=stamp;
   const end=['complete','gameover'].includes(game.state);
+  $('demo-btn').textContent=game.course==='1-3'?'Watch World 1-1 demo':'Watch protected demo';
   $('start-menu').hidden=started;
   $('pause-menu').hidden=!started||(!game.paused&&!(end&&!game.auto));
   $('overlay').hidden=started&&!game.paused&&!(end&&!game.auto);
@@ -211,7 +241,7 @@ function syncUI(){
     $('pause-kicker').textContent=game.state==='complete'?'NICE RUN':'ONE MORE TRY?';
     $('pause-title').textContent=game.state==='complete'?'COURSE CLEAR!':'GAME OVER';
     $('pause-description').textContent=`Score ${String(game.score).padStart(6,'0')} · ${game.coins} coins`;
-    $('resume-btn').textContent='Play again';$('menu-restart-btn').textContent='Watch protected demo';
+    $('resume-btn').textContent=game.state==='complete'&&game.course!=='1-3'?'Next course':'Play again';$('menu-restart-btn').textContent=game.course==='1-3'?'Watch World 1-1 demo':'Watch protected demo';
   }else{
     $('pause-kicker').textContent='TAKE A BREATHER';$('pause-title').textContent='PAUSED';
     $('pause-description').textContent='Your adventure is right where you left it.';
@@ -252,13 +282,13 @@ for(const button of document.querySelectorAll('[data-control]')){
   button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
 }
 $('start-btn').addEventListener('click',()=>start(false));
-$('demo-btn').addEventListener('click',()=>start(true));
+$('demo-btn').addEventListener('click',startDemo);
 $('raccoon-btn').addEventListener('click',()=>start(false,$('practice-suit').value));
 $('practice-suit').addEventListener('change',()=>{document.querySelector('#start-menu .menu-foot').textContent=$('practice-suit').value==='fire'?'Fire Mario: tap Run to shoot · two fireballs max':'Raccoon: tap Jump to fly · tap Run to swipe';});
 $('pause-btn').addEventListener('click',pause);
 $('restart-btn').addEventListener('click',()=>start(false));
-$('resume-btn').addEventListener('click',()=>{if(game.state==='complete'||game.state==='gameover')start(false);else pause();});
-$('menu-restart-btn').addEventListener('click',()=>start(['complete','gameover'].includes(game.state)));
+$('resume-btn').addEventListener('click',()=>{if(game.state==='complete')nextCourse();else if(game.state==='gameover')start(false);else pause();});
+$('menu-restart-btn').addEventListener('click',()=>{if(['complete','gameover'].includes(game.state))startDemo();else start(false);});
 $('fullscreen-btn').addEventListener('click',fullscreen);
 $('exit-fullscreen').addEventListener('click',fullscreen);
 document.addEventListener('fullscreenchange',()=>{
@@ -284,7 +314,7 @@ function loop(now){
   if(game){
     if(!started||game.paused)pollController();
     if(!manualStepping){accumulator+=elapsed;while(accumulator+1e-7>=STEP_MS){accumulator=Math.max(0,accumulator-STEP_MS);step();}}
-    audio.update(started&&!game.paused&&game.state==='playing',game.clock<100,game.paused,game.area==='bonus'?'underground':'overworld');
+    audio.update(started&&!game.paused&&game.state==='playing',game.clock<100,game.paused,game.activeLevel.music||'overworld');
     render(manualStepping||game.paused||!started?1:clamp(accumulator/STEP_MS,0,1));
   }
   requestAnimationFrame(loop);
@@ -297,7 +327,7 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.9.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
+  fetch(new URL('./assets/level.json?v=0.10.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png')
 ]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof])=>{
   fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
   bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];
@@ -316,7 +346,12 @@ window.gameReady=Promise.all([
   for(let i=0;i<tilePixels.data.length;i+=4)if(tilePixels.data[i]===sky[0]&&tilePixels.data[i+1]===sky[1]&&tilePixels.data[i+2]===sky[2])tilePixels.data[i+3]=0;tileCtx.putImageData(tilePixels,0,0);
   world=scenery;atlas=sprites;game=new Game(level,tone);$('loading').hidden=true;
   if(testMode)window.__test={game,start,render,controllers,audio,fx,presentation:()=>lastPresentation};
-  render();return true;
+  courses.set('1-1',{level,world:scenery,tiles:skyTiles});
+  for(const button of document.querySelectorAll('[data-course]'))button.addEventListener('click',()=>selectCourse(button.dataset.course));
+  return Promise.all(['1-2','1-3'].map(async id=>{
+    const [courseLevel,courseWorld,courseTiles]=await Promise.all([fetch(new URL(`./assets/courses/${id}.json?v=${VERSION}`,import.meta.url)).then(r=>{if(!r.ok)throw Error('Missing course '+id);return r.json();}),loadImage(`courses/${id}-world.png`),loadImage(`courses/${id}-tiles.png`)]);
+    courses.set(id,{level:courseLevel,world:courseWorld,tiles:courseTiles});
+  })).then(()=>{if(testMode)Object.assign(window.__test,{selectCourse,courses});minimap();render();return true;});
 }).catch(error=>{
   $('loading').textContent=`Unable to load the game. ${error.message}. Please reload.`;console.error(error);return false;
 });

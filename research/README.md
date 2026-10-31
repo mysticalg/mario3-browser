@@ -1,9 +1,10 @@
 # ROM level decoder research
 
 These are reproducible terrain and object extracts for World 1-1, 1-2 and 1-3.
-World 1-2/1-3 are **not selectable/playable courses in the browser build yet**.
-The runtime remains v0.9.0. The next integration work is slope collision,
-course-specific object spawning/behaviour, pipe destinations and progression.
+The v0.10.0 browser build now plays converted versions of World1-2/1-3, with
+sampled slope collision and course progression. The new courses still need
+several enemy variants, secret rooms and pipe destinations. These research JSON
+files retain original coordinates; runtime copies live in assets/courses.
 
 Run from the repository after `npm ci` (rendering additionally needs Pillow):
 

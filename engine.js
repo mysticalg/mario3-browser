@@ -17,6 +17,15 @@ export class Game {
   createEnemies(level) {
     return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:kind===2?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta,...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
   }
+  setCourse(level,preserve=true){
+    const suit={big:this.player.big,raccoon:this.player.raccoon,fire:this.player.fire};
+    this.level=level;this.reset();this.paused=false;if(!preserve)this.auto=false;
+    if(preserve){Object.assign(this.player,suit);if(suit.big){this.player.h=32;this.player.y-=16;}}
+    else{this.score=0;this.coins=0;this.lives=3;this.frame=0;}
+    this.event('course-started');
+  }
+  get course(){return this.level.id||'1-1';}
+  get goal(){return this.level.goal||{x:2680,y:120};}
   reset() {
     this.area='main';this.areaStates=new Map();this.activeLevel=this.level;
     this.map = Uint8Array.from(this.level.solid);
@@ -25,6 +34,7 @@ export class Game {
     this.collectibles = this.level.coins.map(([x,y]) => ({x,y,got:false}));
     this.enemies = this.createEnemies(this.level);
     this.player = {x:24,y:192,vx:0,vy:0,h:16,big:false,crouched:false,facing:'right',grounded:true,oldJump:false,invul:0,growing:0,travel:0,coyote:0,jumpBuffer:0,skidding:false};
+    Object.assign(this.player,this.level.spawn||{});
     this.state = 'playing';
     this.player.carrying=-1;this.player.runHeld=false;
     Object.assign(this.player,{raccoon:false,fire:false,firing:0,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false});
@@ -99,13 +109,33 @@ export class Game {
     if (y>=256) return 0;
     return this.map[Math.floor(y/16)*256+Math.floor(x/16)];
   }
-  hard(x,y) { const t=this.cell(x,y); return t!==0 && t!==5; }
+  hard(x,y) { const t=this.cell(x,y); return t!==0 && t!==5 && t!==9; }
+  slopeSurface(x,y){
+    const tx=Math.floor(x/16),ty=Math.floor(y/16),tile=ty<0?this.sky.get(`${tx},${ty}`)?.id:this.tiles[ty*256+tx];
+    const shape=this.activeLevel.slopes?.tileShape[tile];
+    return shape?ty*16+(this.activeLevel.slopes.profiles[shape][Math.floor(x)&15]&15):null;
+  }
+  groundSurface(x,previous,current,step=0){
+    let result=null;
+    for(let ty=Math.floor((previous-step-1)/16);ty<=Math.floor((current+step)/16);ty++){
+      for(const sample of [x+3,x+12]){
+        const kind=this.cell(sample,ty*16+8);if(!kind)continue;
+        const top=kind===9?this.slopeSurface(sample,ty*16+8):ty*16;
+        if(top!==null&&previous<=top+step+1&&current>=top&&!(kind===5&&previous>top+1))result=result===null?top:Math.min(result,top);
+      }
+    }
+    return result;
+  }
   wall(x,y,h) {
     for (let d=0;d<h;d+=8) if(this.hard(x+2,y+d)||this.hard(x+13,y+d)) return true;
     return this.hard(x+2,y+h-1)||this.hard(x+13,y+h-1);
   }
   moveX(body,amount,h=body.h||16) {
     const next=clamp(body.x+amount,0,this.areaWidth-14);
+    if(this.activeLevel.slopes&&body.vy>=0){
+      const feet=body.y+h,old=this.groundSurface(body.x,feet-1,feet+1),surface=this.groundSurface(next,feet-6,feet+6,6);
+      if(old!==null&&surface!==null&&surface<feet&&!this.wall(next,surface-h,h-6))body.y=surface-h;
+    }
     if(!this.wall(next,body.y,h)){body.x=next;return false;}
     let resolved=next;
     for(let ty=Math.floor(body.y/16);ty<=Math.floor((body.y+h-1)/16);ty++){
@@ -122,11 +152,12 @@ export class Game {
     this.effects=this.effects.filter(effect=>effect.life>0);
     for(const [off,bump] of this.bumps){if(++bump.age>=10)this.bumps.delete(off);}
   }
-  floor(x,previous,current) {
+  floor(x,previous,current,step=0) {
+    if(this.activeLevel.slopes){const top=this.groundSurface(x,previous,current,step);if(top===null)return false;this.floorY=top;return true;}
     let a=this.cell(x+2,current), b=this.cell(x+13,current);
     const top=Math.floor(current/16)*16;
     if(previous>top+1) { if(a===5)a=0; if(b===5)b=0; }
-    return a!==0||b!==0;
+    this.floorY=top;return a!==0||b!==0;
   }
   patch(tx,ty,id,kind) {
     if(tx<0||tx>=256||ty<0||ty>=16)return;
@@ -145,9 +176,10 @@ export class Game {
     if(tx<0||tx>=256||ty<0||ty>=16)return;
     const kind=this.map[ty*256+tx], p=this.player;
     if([2,3,4,6,7,8].includes(kind))this.bumpEnemies(tx,ty);
+    if(kind===10){this.bumps.set(ty*256+tx,{age:0});this.sound('bump');return;}
     if(kind===2) {
       if(p.big||force) {
-        this.patch(tx,ty,0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound('break');this.event('brick-broken');
+        this.patch(tx,ty,this.activeLevel.emptyTile??0x80,0);this.score+=10;this.pop(tx*16,ty*16,'+10');this.sound('break');this.event('brick-broken');
         for(let q=0;q<4;q++)this.effects.push({kind:'brick',x:tx*16+(q%2)*8,y:ty*16+Math.floor(q/2)*8,vx:q%2?1.5:-1.5,vy:q<2?-4:-2.8,gravity:.2,life:36,q});
       }
       else {this.sound('bump');this.bumps.set(ty*256+tx,{age:0});}
@@ -194,12 +226,12 @@ export class Game {
       m.age=(m.age||0)+1;m.x+=Math.sin(m.age/16)*1.35;m.y+=.7;
     }else if(m.kind==='flower'){
       const previous=m.y+16;m.vy=Math.min(m.vy+.25,6);let ny=m.y+m.vy;
-      if(this.floor(m.x,previous,ny+16)){ny=Math.floor((ny+16)/16)*16-16;m.vy=0;}m.y=ny;
+      if(this.floor(m.x,previous,ny+16)){ny=this.floorY-16;m.vy=0;}m.y=ny;
     }else {
       if(this.moveX(m,m.dir,16))m.dir=-m.dir;
       const previous=m.y+16;
       m.vy=Math.min(m.vy+.25,6);let ny=m.y+m.vy;
-      if(this.floor(m.x,previous,ny+16)){ny=Math.floor((ny+16)/16)*16-16;m.vy=0;}
+      if(this.floor(m.x,previous,ny+16)){ny=this.floorY-16;m.vy=0;}
       m.y=ny;
     }
     if(m.y>264){this.power=null;return;}
@@ -316,7 +348,7 @@ export class Game {
         if(e.red&&e.kind===2&&e.state===1&&wasSupported&&!this.floor(e.x,previous-.5,previous+.5)){e.vx=-e.vx;e.x=oldX+e.vx;}
         e.vy=Math.min(e.vy+.3,6);let ny=e.y+e.vy;
         if(e.vy>=0&&this.floor(e.x,previous,ny+e.h)){
-          ny=Math.floor((ny+e.h)/16)*16-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
+          ny=this.floorY-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
         }
         e.y=ny;if(e.y>264)e.state=0;
       }
@@ -348,12 +380,12 @@ export class Game {
     p.invul=Math.max(p.invul,2); // Protected demonstration only; manual play has normal damage.
     if(p.growing>0){input.right=false;return input;}
     if(this.autoHold>0){this.autoHold--;input.jump=true;}
-    if(p.grounded&&this.autoHold===0){
+    if(p.grounded&&this.autoHold===0&&!p.oldJump){
       let need=this.hard(p.x+34,p.y+p.h-4)||this.hard(p.x+34,p.y+p.h-20);
       const gap=this.cell(p.x+32,p.y+p.h+4)===0&&this.cell(p.x+32,p.y+p.h+20)===0;
-      for(let up=16;up<=64;up+=16)if(this.cell(p.x+34,p.y+p.h-up)===5)need=true;
+      for(let up=16;up<=64;up+=16)if([5,10].includes(this.cell(p.x+34,p.y+p.h-up)))need=true;
       for(const e of this.enemies)if(e.state>0&&e.kind!==3&&e.x>p.x&&e.x-p.x<60)need=true;
-      if(this.cell(p.x+12,p.y-36)===4||p.x>2625)need=true;
+      if(this.cell(p.x+12,p.y-36)===4||p.x>this.goal.x-55)need=true;
       if(need||gap){this.autoHold=15;input.jump=true;}
     }
     const m=this.power;
@@ -439,21 +471,22 @@ export class Game {
     p.oldJump=jump;
     if(this.moveX(p,p.vx))p.vx=0;
     p.x=clamp(p.x,0,this.areaWidth-36);
-    const previousBottom=p.y+p.h;
+    const previousBottom=p.y+p.h,wasGrounded=p.grounded;
     p.vy=Math.min(p.vy+.3,7);let ny=p.y+p.vy;p.grounded=false;
-    if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h)){ny=Math.floor((ny+p.h)/16)*16-p.h;p.vy=0;p.grounded=true;this.stompChain=0;}
+    if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h+(this.activeLevel.slopes&&wasGrounded?6:0),this.activeLevel.slopes&&wasGrounded?6:0)){ny=this.floorY-p.h;p.vy=0;p.grounded=true;this.stompChain=0;}
     if(p.vy<0&&(this.hard(p.x+2,ny)||this.hard(p.x+13,ny))){
       const ty=Math.floor(ny/16);let tx=Math.floor((p.x+8)/16);
       if(!this.hard(tx*16+8,ny)){tx=Math.floor((p.x+2)/16);if(!this.hard(tx*16+8,ny))tx=Math.floor((p.x+13)/16);}
       ny=(ty+1)*16;p.vy=0;this.head(tx,ty);
     }
     p.y=ny;
+    if(p.grounded){const tx=Math.floor((p.x+8)/16),ty=Math.floor((p.y+p.h+1)/16);if(this.cell(p.x+8,p.y+p.h+1)===10){p.vy=jump?-9:-6;p.grounded=false;p.coyote=0;this.bumps.set(ty*256+tx,{age:0});this.sound('bump');this.event('note-bounce');}}
     if(p.y<-320){p.y=-320;p.vy=Math.max(0,p.vy);}
     if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
     this.updatePower();this.updateEnemies(previousBottom);this.updateEnemyFireballs();p.travel+=Math.abs(p.vx);
-    if(this.area==='main'&&p.x+14>2672&&p.x<2704&&p.y<152&&p.y+p.h>112){
+    if(this.area==='main'&&p.x+14>this.goal.x-8&&p.x<this.goal.x+24&&p.y<this.goal.y+32&&p.y+p.h>this.goal.y-8){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
   }
@@ -468,7 +501,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      course:this.course,goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

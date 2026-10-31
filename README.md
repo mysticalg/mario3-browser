@@ -306,3 +306,34 @@ the playable browser course remains World 1-1 while slope physics and additional
 object routines are reconstructed. The test suite now has73 gameplay and6 decoder
 checks. The World1-1 extract independently matches original runtime tile RAM
 except56 decorative random-cloud differences.
+
+## 0.10.0 more courses and a live minimap
+
+World 1-2 and World 1-3 are now selectable from the route below the game, alongside
+World 1-1. Their terrain, coin positions and goals come from the original ROM
+level generator. World 1-2 uses the recovered slope profiles for walking,
+jumping/landing and enemy movement. World 1-3 adds spring note blocks. The live
+minimap shows terrain, Mario and the camera viewport; the route marks cleared
+courses and saves those markers locally. All courses are open for practice.
+
+Clear a course and choose **Next course**, or press gamepad A, to keep your score,
+coins, lives and suit. Restart replays the selected course, and deaths respawn in
+that course. World 1-2 plays the original athletic theme and its hurry version,
+rendered through the ROM sound driver with detected loop boundaries. The asset
+exporter is `python tools/build-courses.py your-rom.nes FCEUX.pal`; audio renderer
+accepts optional track names, e.g. `node tools/render-rom-audio.mjs your-rom.nes
+athletic athletic-hurry`.
+
+This remains a developing reconstruction. World 1-2 pipe spawners, World 1-3
+Boomerang Brothers/warp-whistle event, microgoomba attacks and the new courses'
+secret rooms/routes are not implemented yet. Their original unsupported object
+records remain in the course metadata. The note bounce is reconstructed rather
+than cycle-exact. Protected demos cover1-1 and1-2; the1-3 demo button is explicitly
+labelled to show1-1 while1-3's guided route is unfinished. This compact course
+route/minimap is a new interface, not the full original overworld map.
+
+Validation:81 gameplay checks plus6 decoder checks (87 total),102 browser checks,
+including slope ascent/descent/jumps, note bounce, new goal positions, selected
+course respawn, campaign state, live minimap movement, persisted clears, touch
+selection and gamepad course progression. Reviewed desktop/phone captures and
+the unmodified skill client's input-driven hills gameplay.

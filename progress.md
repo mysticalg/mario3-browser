@@ -161,3 +161,21 @@ and1-3 start previews. Runtime remains0.9.0; these new courses are research data
 not exposed as playable until slope collision/objects/pipes are implemented.
 Goal remains active. Next: integrate original slope height profiles and verify
 movement against original-ROM trajectories before enabling1-2.
+
+0.10.0 user request: add more worlds and mini map. Added playable original1-2
+and1-3 from CPU-decoded terrain; self-contained course asset exporter, transparent
+original tile atlases/world layers, metadata for unsupported object variants.
+Implemented original sampled slope-height floors with supported slope ascent,
+descent and landing; player/enemy/mushroom floor alignment uses detected surface.
+Correct1-2 spawn atY176, distinct1-3 goal, course-local death/restart, campaign
+score/lives/suit preservation. Added spring note bounce, course route buttons,
+live SVG terrain/player/camera minimap, persistent clear marks, next-course button
+and controllerA progression. Fixed async course-load order affecting next course.
+Added ROM athletic/hurry tracks queue4F5=90 with detected loops and filtered audio
+export preserving manifest. Auto jump releases between attempts;1-2 demo clears.
+1-3 demo explicitly falls back to labelled1-1 demo because its guided route stalls
+at tall original obstacles. Full1-3 manual play/notes remain available. Reviewed
+hills and phone course-map captures and unmodified skill-client hills gameplay.
+81 gameplay+6 decoder tests and102 browser checks pass locally. Remaining native
+fidelity: pipe spawners, Boomerang Brothers, microgoomba attacks, whistle and new
+secret rooms/pipes, full original overworld and later worlds. Goal stays active.

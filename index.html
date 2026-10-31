@@ -7,12 +7,12 @@
   <meta name="description" content="Play the browser port of the Mario 3 RISC OS prototype. Keyboard, touch and gamepad controls.">
   <title>Mario 3 · Browser demo</title>
   <link rel="icon" href="assets/icon.png">
-  <link rel="stylesheet" href="style.css?v=0.9.0">
+  <link rel="stylesheet" href="style.css?v=0.10.0">
 </head>
 <body>
   <main id="app">
     <header class="topbar">
-      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p>World 1-1 <span> / </span> Browser demo 0.9.0</p></div></div>
+      <div class="identity"><img src="assets/icon.png" alt="" width="40" height="40"><div><h1>SUPER MARIO BROS. 3</h1><p><b id="course-label">World 1-1</b> <span> / </span> Browser demo 0.10.0</p></div></div>
       <div class="tools">
         <button id="music-btn" aria-label="Mute music" title="Music (M)" aria-pressed="true">♫<span>Music on</span></button>
         <button id="sound-btn" aria-label="Mute sound" title="Sound" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3c3 2 3 6 0 8m3-11c5 4 5 10 0 14"/></svg><span>Sound on</span></button>
@@ -28,7 +28,7 @@
         <div class="menu" id="start-menu">
           <p class="menu-kicker">WORLD 1-1</p>
           <h2>LET’S-A GO.</h2>
-          <p class="menu-description">Three lives. One familiar adventure.<br>Reach the card at the end of the course.</p>
+          <p class="menu-description">Three lives. Three original courses.<br>Reach the card at the end of the course.</p>
           <button class="primary" id="start-btn">Play game <span aria-hidden="true">→</span></button>
           <button class="secondary" id="demo-btn">Watch protected demo</button>
           <div class="practice-row"><select id="practice-suit" aria-label="Quick-start suit"><option value="raccoon">Raccoon flight</option><option value="fire">Fire Mario</option></select><button class="secondary" id="raccoon-btn" title="Try the selected suit">Try suit</button></div>
@@ -46,6 +46,12 @@
       <button id="exit-fullscreen" class="fullscreen-exit" hidden>Exit fullscreen</button>
     </section>
 
+    <section class="course-map" aria-label="World map">
+      <nav aria-label="Choose course"><button data-course="1-1" aria-pressed="true">World 1-1</button><span aria-hidden="true">—</span><button data-course="1-2" aria-pressed="false">World 1-2</button><span aria-hidden="true">—</span><button data-course="1-3" aria-pressed="false">World 1-3</button></nav>
+      <div class="mini-label"><span id="mini-caption">World 1-1</span><span>● Mario · outlined box = camera</span></div>
+      <svg id="mini-map" viewBox="0 0 1000 72" role="img" aria-label="Live course minimap"></svg>
+    </section>
+
     <div class="underbar">
       <button id="fx-btn" aria-pressed="true" title="Visual effects (V)">FX on</button>
       <div class="keyboard-tips"><span><kbd>←</kbd> <kbd>→</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>Shift</kbd> Run</span></div>
@@ -57,9 +63,9 @@
       <div class="touch-direction"><button data-control="left" aria-label="Move left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7"/></svg></button><button data-control="down" aria-label="Duck"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg></button><button data-control="right" aria-label="Move right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7"/></svg></button></div>
       <div class="touch-actions"><button class="run-control" data-control="run">RUN</button><button class="jump-control" data-control="jump">JUMP</button></div>
     </div>
-    <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Raccoon flight, Fire Mario, tail attacks and generated parallax scenery are included. The original World 1-1 bonus room is included; other areas and suits remain in development.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs, Down ducks. Hold Run to carry a stationary shell and release to throw. P pauses, R restarts, F toggles fullscreen. V toggles glow, shadows, trails and particles. <strong>Fire Mario:</strong> select Fire Mario and Try suit to test. Tap Run to shoot; two fireballs can be active. The original World 1-1 leaf blocks are preserved. <strong>Raccoon:</strong> collect a leaf as Super Mario, run until P fills, jump, then tap Jump to flap. Tap Jump while falling to flutter, and tap Run for a tail attack. The quick-start button begins airborne with the meter charged. Fly to the high pipe near the end and hold Down to find the bonus room; jump up into its ceiling exit pipe to return. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Down ducks, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Sound starts when you play. The Sound button mutes all audio; The Music button (or M) controls the original ROM music separately. Music and effects are rendered from the supplied ROM using its original sound driver and NES audio emulation.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
+    <details class="notes"><summary>About this demo & controls</summary><div><p>A browser port of the RISC OS prototype, with corrected original ROM graphics and World 1-1 geometry. Game behaviour is a reconstruction, not the full original game. Raccoon flight, Fire Mario, tail attacks and generated parallax scenery are included. Three original courses (1-1, 1-2 and 1-3), hills, note-block springs and a live minimap are included. Select a course below the game; clear it and choose Next course to keep your score, lives and suit. Some enemy variants and secret routes in the new courses remain in development. The original World 1-1 bonus room is included.</p><p><strong>Keyboard:</strong> arrows or Z/X move, Space jumps, Shift runs, Down ducks. Hold Run to carry a stationary shell and release to throw. P pauses, R restarts, F toggles fullscreen. V toggles glow, shadows, trails and particles. <strong>Fire Mario:</strong> select Fire Mario and Try suit to test. Tap Run to shoot; two fireballs can be active. The original World 1-1 leaf blocks are preserved. <strong>Raccoon:</strong> collect a leaf as Super Mario, run until P fills, jump, then tap Jump to flap. Tap Jump while falling to flutter, and tap Run for a tail attack. The quick-start button begins airborne with the meter charged. Fly to the high pipe near the end and hold Down to find the bonus room; jump up into its ceiling exit pipe to return. <strong>Controller:</strong> D-pad / left stick moves, A (bottom face button) jumps, X or B runs, Down ducks, Start pauses, Select restarts. Press a face button to begin. Standard browser-mapped Xbox, PlayStation and other controllers are supported; mappings vary by device.</p><p>The protected demo ignores enemy damage. Move or jump to take manual control. Sound starts when you play. The Sound button mutes all audio; The Music button (or M) controls the original ROM music separately. Music and effects are rendered from the supplied ROM using its original sound driver and NES audio emulation.</p><p>Original game and artwork © Nintendo. Research reference: <a href="https://github.com/captainsouthbird/smb3" target="_blank" rel="noreferrer">Southbird’s SMB3 disassembly</a>. This is an unofficial development prototype.</p></div></details>
     <footer><span>NES → RISC OS → BROWSER</span><a id="source-link" href="https://github.com/mysticalg/mario3-browser" target="_blank" rel="noreferrer">Source on GitHub ↗</a></footer>
   </main>
-  <script type="module" src="main.js?v=0.9.0"></script>
+  <script type="module" src="main.js?v=0.10.0"></script>
 </body>
 </html>

@@ -256,3 +256,35 @@ test('hostile shots move straight, hurt Mario and respect immunity, pause and ar
 test('Fire Mario can kill an exposed Venus plant while its existing shot stays active',()=>{
  const g=fixture(),e=g.enemies.find(e=>e.romId===0xa6);Object.assign(e,{state:1,rise:33,h:32,y:e.baseY-33});g.spitPlant(e);g.fireballs=[{x:e.x+3,y:e.y+8,vx:0,vy:0,age:0,poof:0}];g.updateFireballs();assert.ok(e.state<0);assert.equal(g.enemyFireballs.length,1);
 });
+
+const hills=JSON.parse(fs.readFileSync(new URL('../assets/courses/1-2.json',import.meta.url)));
+const plains3=JSON.parse(fs.readFileSync(new URL('../assets/courses/1-3.json',import.meta.url)));
+test('new original courses have distinct geometry, correct spawn floors and goals',()=>{
+ const a=new Game(hills),b=new Game(plains3);steps(a,30);steps(b,30);
+ assert.equal(a.player.y,176);assert.equal(b.player.y,192);assert.equal(a.course,'1-2');assert.equal(b.goal.x,2424);assert.equal(a.goal.x,2680);assert.equal(a.level.music,'athletic');
+});
+test('Mario walks up and back down the real World 1-2 hills without wall steps',()=>{
+ const g=new Game(hills);g.enemies=[];steps(g,120,{right:true});assert.ok(g.player.x>295);assert.ok(g.player.y<120);assert.equal(g.player.grounded,true);
+ steps(g,155,{left:true});assert.ok(g.player.x<35);assert.equal(g.player.y,176);assert.equal(g.state,'playing');
+});
+test('jumping off a hill preserves airborne motion and lands on the original slope',()=>{
+ const g=new Game(hills);g.enemies=[];steps(g,85,{right:true});const start=g.player.y;steps(g,8,{jump:true});assert.ok(g.player.y<start-30);assert.equal(g.player.grounded,false);steps(g,65);assert.equal(g.player.grounded,true);assert.ok(Math.abs(g.player.y+g.player.h-g.groundSurface(g.player.x,g.player.y+g.player.h-1,g.player.y+g.player.h+1))<1);
+});
+test('switching courses preserves campaign score, lives and suit and clears room/projectile state',()=>{
+ const g=fixture();Object.assign(g.player,{big:true,raccoon:true,h:32});g.score=1300;g.coins=5;g.lives=2;g.area='bonus';g.fireballs=[{}];g.enemyFireballs=[{}];g.setCourse(hills);
+ assert.equal(g.course,'1-2');assert.equal(g.area,'main');assert.equal(g.score,1300);assert.equal(g.coins,5);assert.equal(g.lives,2);assert.equal(g.player.raccoon,true);assert.equal(g.player.y,160);assert.equal(g.fireballs.length+g.enemyFireballs.length,0);
+ g.setCourse(plains3,false);assert.equal(g.player.big,false);assert.equal(g.score,0);assert.equal(g.lives,3);
+});
+test('deaths respawn in the selected course and use its own starting height',()=>{
+ const g=new Game(hills);g.die();steps(g,56);assert.equal(g.course,'1-2');assert.equal(g.lives,2);assert.equal(g.player.y,176);
+});
+test('World 1-3 card clears at its original position instead of the 1-1 goal',()=>{
+ const g=new Game(plains3);g.enemies=[];Object.assign(g.player,{x:g.goal.x-5,y:g.goal.y,vy:0,grounded:false});g.update();assert.equal(g.state,'complete');
+});
+test('new course note blocks bounce Mario and held jump gives a higher bounce',()=>{
+ const a=new Game(plains3),b=new Game(plains3);for(const g of [a,b]){g.enemies=[];Object.assign(g.player,{x:480,y:140,vy:4,grounded:false,oldJump:true});}
+ a.update({jump:true});b.update();assert.equal(a.player.vy,-9);assert.equal(b.player.vy,-6);assert.ok(a.events.some(e=>e.type==='note-bounce'));
+});
+test('protected demo traverses the original hills and reaches the 1-2 card',()=>{
+ const g=new Game(hills);g.auto=true;for(let i=0;i<3000&&g.state!=='complete';i++)g.update();assert.equal(g.state,'complete');assert.equal(g.lives,3);
+});

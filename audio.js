@@ -2,7 +2,7 @@
 const ROOT=new URL('./assets/audio/',import.meta.url);
 let encodedAssets;
 function assets(){
- return encodedAssets ||= fetch(new URL('provenance.json?v=0.8.0',ROOT)).then(r=>{if(!r.ok)throw Error('Audio manifest unavailable');return r.json();}).then(async manifest=>{
+ return encodedAssets ||= fetch(new URL('provenance.json?v=0.10.0',ROOT)).then(r=>{if(!r.ok)throw Error('Audio manifest unavailable');return r.json();}).then(async manifest=>{
  const files=await Promise.all(Object.keys(manifest.files).map(async name=>{const r=await fetch(new URL(name+'.wav',ROOT));if(!r.ok)throw Error(`Missing ROM audio: ${name}`);return [name,await r.arrayBuffer()];}));return {manifest,files};
  }).catch(error=>{encodedAssets=null;throw error;});
 }
