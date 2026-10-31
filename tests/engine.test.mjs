@@ -222,3 +222,37 @@ test('red shell retains its colour through stomp and wake',()=>{
  Object.assign(g.player,{x:100,y:164,vy:3});g.updateEnemies(175);assert.equal(e.state,2);assert.equal(e.red,true);
  e.wake=1;e.cooldown=0;g.player.x=200;g.updateEnemies(0);assert.equal(e.state,1);assert.equal(e.red,true);assert.equal(Math.abs(e.vx),.5);
 });
+
+test('ROM plant variants are centered in pipes with distinct height and firing flags',()=>{
+ const g=new Game(level),plants=g.enemies.filter(e=>e.kind===3);
+ assert.deepEqual(plants.map(e=>[e.romId,e.x,e.maxRise,e.spits,e.h]),[[0xa6,360,33,true,0],[0xa0,1800,25,false,0],[0xa4,1864,25,true,0]]);
+});
+test('Piranha hides near Mario then rises one pixel per tick and follows its ROM phase timers',()=>{
+ const g=fixture(),e=g.enemies.find(e=>e.romId===0xa6);e.state=1;g.player.x=e.x;
+ for(let i=0;i<120;i++)g.updatePlant(e);assert.equal(e.plantPhase,0);assert.equal(e.rise,0);
+ g.player.x=e.x-100;g.updatePlant(e);assert.equal(e.plantPhase,1);
+ for(let i=0;i<33;i++)g.updatePlant(e);assert.equal(e.rise,33);assert.equal(e.plantPhase,2);assert.equal(e.plantTimer,96);
+ for(let i=0;i<55;i++)g.updatePlant(e);assert.equal(g.enemyFireballs.length,0);
+ g.updatePlant(e);assert.equal(g.enemyFireballs.length,1);assert.equal(e.plantTimer,40);
+ for(let i=0;i<40;i++)g.updatePlant(e);assert.equal(e.plantPhase,3);
+ for(let i=0;i<33;i++)g.updatePlant(e);assert.equal(e.plantPhase,0);assert.equal(e.h,0);assert.equal(e.plantTimer,96);
+});
+test('plain green Piranha uses 48 ticks and does not spit',()=>{
+ const g=fixture(),e=g.enemies.find(e=>e.romId===0xa0);g.player.x=e.x-100;
+ g.updatePlant(e);for(let i=0;i<25;i++)g.updatePlant(e);assert.equal(e.plantTimer,48);assert.equal(e.rise,25);
+ for(let i=0;i<48;i++)g.updatePlant(e);assert.equal(e.plantPhase,3);assert.equal(g.enemyFireballs.length,0);
+});
+test('plant shots use discrete ROM aiming and four hostile slots independent of Mario shots',()=>{
+ const g=fixture(),e=g.enemies.find(e=>e.kind===3);e.y=120;
+ Object.assign(g.player,{x:e.x-30,y:80});g.spitPlant(e);assert.deepEqual(g.enemyFireballs[0],{x:e.x+3,y:120,vx:-11/16,vy:-11/16});
+ Object.assign(g.player,{x:e.x+100,y:180});g.spitPlant(e);assert.equal(g.enemyFireballs[1].vx,14/16);assert.equal(g.enemyFireballs[1].vy,5/16);
+ g.spitPlant(e);g.spitPlant(e);g.spitPlant(e);assert.equal(g.enemyFireballs.length,4);g.player.fire=true;assert.equal(g.throwFireball(),true);
+});
+test('hostile shots move straight, hurt Mario and respect immunity, pause and area reset',()=>{
+ const g=fixture();g.player.big=true;g.player.h=32;g.player.y=176;g.enemyFireballs=[{x:30,y:184,vx:0,vy:0}];g.updateEnemyFireballs();assert.equal(g.player.big,false);assert.ok(g.player.invul>0);g.updateEnemyFireballs();assert.equal(g.state,'playing');
+ g.enemyFireballs=[{x:100,y:100,vx:11/16,vy:-11/16}];g.updateEnemyFireballs();assert.equal(g.enemyFireballs[0].y,100-11/16);assert.equal(g.enemyFireballs[0].vy,-11/16);
+ g.paused=true;const before=JSON.stringify(g.enemyFireballs);steps(g,30);assert.equal(JSON.stringify(g.enemyFireballs),before);g.switchArea('bonus');assert.equal(g.enemyFireballs.length,0);
+});
+test('Fire Mario can kill an exposed Venus plant while its existing shot stays active',()=>{
+ const g=fixture(),e=g.enemies.find(e=>e.romId===0xa6);Object.assign(e,{state:1,rise:33,h:32,y:e.baseY-33});g.spitPlant(e);g.fireballs=[{x:e.x+3,y:e.y+8,vx:0,vy:0,age:0,poof:0}];g.updateFireballs();assert.ok(e.state<0);assert.equal(g.enemyFireballs.length,1);
+});

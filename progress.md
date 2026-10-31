@@ -132,3 +132,17 @@ creation so metadata persists across bonus visits. Added self-contained exporter
 67 engine tests / 89 browser checks pass locally. Inspected red Koopa rendering
 and unmodified skill client gameplay screenshot. Remaining: firing plant variants,
 full level decoder integration, hills slope physics, more levels and world map.
+
+0.9.0 continued reverse engineering: traced PRG005 Piranha init/phase routines
+and SpitFire; PRG007 SObj_Fireball confirms no gravity for hostile plant fire.
+Restored A6/A0/A4 variants, +8 centering, 33/25 rise, 96/48 phase waits, hidden
+proximity gate, timer40 firing and 11/16 or 14/16 horizontal, 11/16 or 5/16
+vertical aiming. Added independent four hostile slots, damage/invulnerability,
+pause/transition/death cleanup and text snapshots. Exported CHR79 plant frames.
+Source review caught green stems even on red plants and independent head V flip;
+corrected both. Auto preview needed active countersteer before pits after changed
+plant timing, because neutral airborne input preserves momentum. 73 engine and
+92 browser checks pass locally, including normal-update firing and damage.
+Inspected Venus shot, green variants and unmodified skill-client gameplay captures.
+Remaining: full terrain decoder integration, hill slopes, additional levels/map,
+other enemy families and game mechanics. Goal remains active.

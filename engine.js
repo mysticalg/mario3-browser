@@ -15,7 +15,7 @@ export class Game {
     this.reset();
   }
   createEnemies(level) {
-    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:kind===2?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta};});
+    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:kind===2?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta,...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
   }
   reset() {
     this.area='main';this.areaStates=new Map();this.activeLevel=this.level;
@@ -40,7 +40,7 @@ export class Game {
     this.effects = [];
     this.bumps = new Map();
     this.sky=new Map((this.level.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));this.transition=null;
-    this.fireballs=[];
+    this.fireballs=[];this.enemyFireballs=[];
   }
   get areaWidth(){return this.activeLevel.playableWidth||2816;}
   switchArea(name){
@@ -54,7 +54,7 @@ export class Game {
       this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
-    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];
+    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];
   }
   tryPipe(input){
     const p=this.player;if(p.carrying>=0)return false;
@@ -183,7 +183,7 @@ export class Game {
     const p=this.player;
     if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
-    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];
+    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];this.enemyFireballs=[];
     this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
@@ -247,6 +247,34 @@ export class Game {
     }
     this.fireballs=this.fireballs.filter(b=>!b.dead);
   }
+  spitPlant(e) {
+    if(this.enemyFireballs.length>=4)return;
+    const p=this.player,close=Math.abs(p.x-e.x)<80;
+    this.enemyFireballs.push({x:e.x+3,y:e.y,vx:(p.x<e.x?-1:1)*(close?11:14)/16,vy:(p.y<e.y?-1:1)*(close?11:5)/16});
+    this.event('plant-fired');
+  }
+  updatePlant(e) {
+    e.plantAnim++;if(e.plantTimer>0)e.plantTimer--;
+    const wait=e.spits?96:48,near=Math.abs(this.player.x-e.x)<=27;
+    switch(e.plantPhase){
+      case 0:if(e.plantTimer===0&&!near){e.plantPhase=1;e.plantTimer=wait;}break;
+      case 1:e.rise=Math.min(e.maxRise,e.rise+1);if(e.rise===e.maxRise){e.plantPhase=2;e.plantTimer=wait;}break;
+      case 2:
+        if(e.spits&&e.plantTimer===40){e.plantAnim=0;this.spitPlant(e);}
+        if(e.plantTimer===0){e.plantPhase=3;e.plantTimer=wait;}break;
+      case 3:e.rise=Math.max(0,e.rise-1);if(e.rise===0){e.plantPhase=0;e.plantTimer=wait;}break;
+    }
+    e.y=e.baseY-e.rise;e.h=Math.min(32,e.rise);
+  }
+  updateEnemyFireballs() {
+    const p=this.player,cam=this.camera;
+    for(const b of this.enemyFireballs){
+      b.x+=b.vx;b.y+=b.vy;
+      if(b.x<cam-32||b.x>cam+352||b.y<this.cameraY-32||b.y>this.cameraY+256)b.dead=true;
+      if(!b.dead&&p.x+13>b.x+1&&p.x+3<b.x+7&&p.y+p.h>b.y+1&&p.y<b.y+7)this.hurt();
+    }
+    this.enemyFireballs=this.enemyFireballs.filter(b=>!b.dead);
+  }
   updateEnemies(previousBottom) {
     const p=this.player;
     for(let i=0;i<this.enemies.length;i++){
@@ -267,7 +295,8 @@ export class Game {
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
       if(p.raccoon&&p.tail>4&&e.kind!==3&&e.state>0&&Math.abs(e.x-p.x)<30&&Math.abs(e.y+e.h/2-p.y-p.h/2)<23){e.state=-14;this.score+=100;this.sound('kick');this.event('tail-hit');continue;}
-      if(e.kind===3){
+      if(e.kind===3&&e.plantPhase!==undefined){this.updatePlant(e);}
+      else if(e.kind===3){
         const phase=(this.frame+i*19)%180;
         let rise=Math.floor(clamp(Math.min(phase-35,145-phase)*1.5,0,32));
         if(Math.abs(p.x-e.x)<25&&rise<3)rise=0;
@@ -333,7 +362,7 @@ export class Game {
       if(Math.abs(m.x-p.x)<8){input.left=false;input.right=false;}
       if(m.y<p.y&&p.grounded){this.autoHold=12;input.jump=true;}
     }
-    if(this.enemies.some(e=>e.kind===3&&e.x>p.x+10&&e.x-p.x<75&&e.h>1)){
+    if(p.grounded&&this.enemies.some(e=>e.kind===3&&e.x>p.x+10&&e.x-p.x<75&&e.h>1)){
       input.right=false;input.left=false;input.jump=false;this.autoHold=0;
     }
     // Brake before landing in a pit after jumping from a high platform.
@@ -341,7 +370,7 @@ export class Game {
       const distance=208-p.y-p.h;
       const landingTicks=(Math.sqrt(p.vy*p.vy+.6*distance)-p.vy)/.3;
       const landingX=p.x+p.vx*landingTicks;
-      if(this.cell(landingX+8,212)===0)input.right=false;
+      if(this.cell(landingX+8,212)===0){input.right=false;input.left=p.vx>0;}
     }
     return input;
   }
@@ -423,7 +452,7 @@ export class Game {
     if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
-    this.updatePower();this.updateEnemies(previousBottom);p.travel+=Math.abs(p.vx);
+    this.updatePower();this.updateEnemies(previousBottom);this.updateEnemyFireballs();p.travel+=Math.abs(p.vx);
     if(this.area==='main'&&p.x+14>2672&&p.x<2704&&p.y<152&&p.y+p.h>112){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
@@ -439,7 +468,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

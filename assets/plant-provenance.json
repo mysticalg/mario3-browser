@@ -1,0 +1,25 @@
+{
+  "romSHA256": "4377a7f5e6eb50bdd2ac6f249bf1a7085500aca8eb41f38545c3a2731c51a579",
+  "chrBank": 79,
+  "paletteBase": 224418,
+  "plainHeadPatterns": [
+    225,
+    229
+  ],
+  "fireHeadPatterns": [
+    241,
+    243,
+    245,
+    247
+  ],
+  "stemPattern": 227,
+  "atlasFrames": [
+    311,
+    312,
+    313,
+    314,
+    315,
+    316
+  ],
+  "behaviourReference": "Southbird PRG005 Piranha_Emerge/Attack/Retract/HideInPipe/SpitFire"
+}

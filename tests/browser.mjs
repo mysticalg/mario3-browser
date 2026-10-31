@@ -23,6 +23,17 @@ try{
   await advance(30);await page.screenshot({path:path.join(output,'red-koopa.png'),fullPage:true});
   check('both ROM red Koopas have their original object IDs',await seed(()=>window.__test.game.enemies.filter(e=>e.red).every(e=>e.romId===0x6d)));
   await page.reload();await page.evaluate(()=>window.gameReady);
+  await seed(()=>{window.__test.start(false);const g=window.__test.game;g.enemies.forEach(e=>{if(e.kind!==3)e.state=0;});Object.assign(g.player,{x:280,y:192});});
+  await advance(1500);
+  check('Venus plant rises and fires through normal simulation',(await snapshot()).events.some(e=>e.type==='plant-fired')&&(await snapshot()).enemyFireballs.length>0);
+  await advance(300);await page.screenshot({path:path.join(output,'venus-fire-trap.png'),fullPage:true});
+  await page.keyboard.press('KeyP');const hostileBefore=JSON.stringify((await snapshot()).enemyFireballs);await advance(300);
+  check('hostile shots freeze on pause',JSON.stringify((await snapshot()).enemyFireballs)===hostileBefore);await page.keyboard.press('KeyP');
+  await seed(()=>{const g=window.__test.game,b=g.enemyFireballs[0];Object.assign(g.player,{x:b.x-4,y:b.y-4,big:true,h:32,invul:0});});await advance(17);
+  check('plant fireball damages Mario in browser',!(await snapshot()).player.big&&(await snapshot()).player.invul>0);
+  await seed(()=>{window.__test.start(false);const g=window.__test.game;g.enemies.forEach(e=>{if(e.kind!==3)e.state=0;});Object.assign(g.player,{x:1730,y:192});});await advance(1200);
+  await page.screenshot({path:path.join(output,'green-piranha-variants.png'),fullPage:true});
+  await page.reload();await page.evaluate(()=>window.gameReady);
   await page.focus('#practice-suit');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
   check('suit selector supports native keyboard input without starting gameplay',(await page.inputValue('#practice-suit'))==='fire'&&(await snapshot()).screen==='menu');
   await page.click('#raccoon-btn');

@@ -277,3 +277,22 @@ survives stomping, carrying, kicking and waking. Exporter:
 Validation: 67 engine tests, 89 browser checks, inspected red Koopa screenshot
 and unmodified skill client raccoon gameplay. Enemy variants, plant attacks,
 additional levels, slopes and world map still need reconstruction.
+
+## 0.9.0 original Piranha variants and aimed fire
+
+World 1-1 object IDs A6/A0/A4 now select the red Venus Fire Trap, plain green
+Piranha and green fire-spitter. PRG005 supplies their centered pipe position,
+33/25 pixel rise heights, one-pixel movement, 96/48 tick phase timers,
+proximity-gated emergence and World 1 firing at timer 28 hex. Hostile fire uses
+four separate slots and the original discrete close/far aiming velocities;
+it travels straight, damages Mario, respects immunity and freezes on pause.
+Fire Mario can defeat an exposed plant while its existing projectile continues.
+Original CHR page 79 supplies distinct animated heads and green stems. The
+head alone flips vertically to aim. Export with
+`python tools/export-plant-assets.py your-rom.nes FCEUX.pal`.
+
+The protected demo now counter-steers to brake airborne momentum before a pit
+rather than merely releasing Right. Validation: 73 engine tests, 92 browser
+checks, original skill client gameplay and inspected plant/fireball screenshots.
+This remains a reconstruction; additional levels, slopes, map and other enemy
+families are still unfinished.
