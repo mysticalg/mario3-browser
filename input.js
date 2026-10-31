@@ -7,6 +7,7 @@ export function readGamepad(pad) {
     index:pad.index,id:String(pad.id||'Game controller'),
     left:hasDpad?dleft&&!dright:axis<-.25,right:hasDpad?dright&&!dleft:axis>.25,
     down:button(13)||Number(pad.axes?.[1]||0)>.45,
+    up:button(12)||Number(pad.axes?.[1]||0)<-.45,
     jump:button(0),run:button(1)||button(2),start:button(9),restart:button(8),
     anyButton:pad.buttons?.some(b=>b.pressed||b.value>.5)||false
   };

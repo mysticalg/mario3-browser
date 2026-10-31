@@ -4,6 +4,28 @@
   "sampleRate": 44100,
   "engineEntry": "$A000, MMC3 banks 28/29/31",
   "files": {
+    "underground": {
+      "queue": "0x4f5",
+      "value": 32,
+      "seconds": 19.167460317460318,
+      "peak": 0.4990141397809915,
+      "sha256": "d573dd0936ff04cf3a81ee23dedc5f9298989980d0b983366b362b3dc6145e43",
+      "loop": {
+        "start": 0,
+        "end": 19.167460317460318
+      }
+    },
+    "underground-hurry": {
+      "queue": "0x4f5",
+      "value": 32,
+      "seconds": 34.573469387755104,
+      "peak": 0.52647213801341,
+      "sha256": "22e67b67b7cd0bb6912fd2d0b6836e7a12235bb51b0910568348b3f0e5503c25",
+      "loop": {
+        "start": 17.55294784580499,
+        "end": 34.573469387755104
+      }
+    },
     "tail": {
       "queue": "0x4f2",
       "value": 176,

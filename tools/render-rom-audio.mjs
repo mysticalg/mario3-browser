@@ -27,24 +27,29 @@ function wav(samples,path){
   for(let i=0;i<samples.length;i++)b.writeInt16LE(Math.round(Math.max(-1,Math.min(1,samples[i]))*32767),44+i*2);
   fs.writeFileSync(path,b);
 }
-const requests={tail:[0x4f2,0xb0,.6],jump:[0x4f1,1,1],'jump-big':[0x4f1,1,1],coin:[0x4f2,1,1],bump:[0x4f1,2,.6],break:[0x4f3,1,1],stomp:[0x4f1,4,.7],kick:[0x4f1,8,.7],appear:[0x4f2,2,1.5],powerup:[0x4f2,0x20,2],oneup:[0x4f2,0x40,2],shrink:[0x4f1,0x10,1],death:[0x4f4,1,4],clear:[0x4f4,0x20,6],gameover:[0x4f4,2,6],warning:[0x4f4,0x40,2],overworld:[0x4f5,0x10,65],'overworld-hurry':[0x4f5,0x10,55]};
+const requests={underground:[0x4f5,0x20,40],'underground-hurry':[0x4f5,0x20,35],tail:[0x4f2,0xb0,.6],jump:[0x4f1,1,1],'jump-big':[0x4f1,1,1],coin:[0x4f2,1,1],bump:[0x4f1,2,.6],break:[0x4f3,1,1],stomp:[0x4f1,4,.7],kick:[0x4f1,8,.7],appear:[0x4f2,2,1.5],powerup:[0x4f2,0x20,2],oneup:[0x4f2,0x40,2],shrink:[0x4f1,0x10,1],death:[0x4f4,1,4],clear:[0x4f4,0x20,6],gameover:[0x4f4,2,6],warning:[0x4f4,0x40,2],overworld:[0x4f5,0x10,65],'overworld-hurry':[0x4f5,0x10,55]};
 const out=new URL('../assets/audio/',import.meta.url);fs.mkdirSync(out,{recursive:true});
 const report={romSHA256:crypto.createHash('sha256').update(rom).digest('hex'),emulator:'JSNES 2.1.0',sampleRate:rate,engineEntry:'$A000, MMC3 banks 28/29/31',files:{}};
 for(const [name,[queue,value,seconds]] of Object.entries(requests)){
   const {nes,samples,tick}=create();nes.cpu.mem[queue]=value;
-  const transitions=[];let previous=-1;
+  const transitions=[],phases=new Map();let previous=-1,phaseLoop=null;
   for(let n=0;n<Math.ceil(seconds*60.0988);n++){
     const start=samples.length;tick();
-    if(name==='overworld-hurry')nes.cpu.write(0x7af7,0x10);
-    if(name.startsWith('overworld')&&nes.cpu.mem[0x4df]!==previous){
+    if(name.endsWith('-hurry'))nes.cpu.write(0x7af7,0x10);
+    if(name.startsWith('underground')&&!phaseLoop){
+      const mem=nes.cpu.mem,key=[...mem.slice(0x4d0,0x4e0),...mem.slice(0x4f9,0x500),mem[0x6b],mem[0x6c]].join(',');
+      if(phases.has(key)&&n-phases.get(key).frame>100)phaseLoop={start:phases.get(key).sample/rate,end:start/rate};
+      else if(!phases.has(key))phases.set(key,{frame:n,sample:start});
+    }
+    if((name.startsWith('overworld')||name.startsWith('underground'))&&nes.cpu.mem[0x4df]!==previous){
       previous=nes.cpu.mem[0x4df];transitions.push({index:previous,sample:start,loop:nes.cpu.load(0x7ae2)});
     }
   }
-  let loop=null;
+  let loop=phaseLoop;
   if(transitions.length){
     const seen=new Map();for(const t of transitions){if(seen.has(t.index)){loop={start:seen.get(t.index)/rate,end:t.sample/rate};break;}seen.set(t.index,t.sample);}
-    if(loop)samples.length=Math.round(loop.end*rate);
   }
+  if(loop)samples.length=Math.round(loop.end*rate);
   const mean=samples.reduce((a,b)=>a+b,0)/samples.length;
   const centered=samples.map(v=>v-mean);let peak=0;for(const sample of centered)peak=Math.max(peak,Math.abs(sample));
   wav(centered,new URL(name+'.wav',out));

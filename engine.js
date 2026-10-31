@@ -15,6 +15,7 @@ export class Game {
     this.reset();
   }
   reset() {
+    this.area='main';this.areaStates=new Map();this.activeLevel=this.level;
     this.map = Uint8Array.from(this.level.solid);
     this.tiles = Uint8Array.from(this.level.tiles);
     this.patches = new Map();
@@ -35,6 +36,47 @@ export class Game {
     this.stompChain=0;
     this.effects = [];
     this.bumps = new Map();
+    this.sky=new Map((this.level.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));this.transition=null;
+  }
+  get areaWidth(){return this.activeLevel.playableWidth||2816;}
+  switchArea(name){
+    const keys=['map','tiles','patches','collectibles','enemies','power','sky'];
+    this.areaStates.set(this.area,Object.fromEntries(keys.map(k=>[k,this[k]])));
+    this.area=name;this.activeLevel=name==='bonus'?this.level.bonus:this.level;
+    const saved=this.areaStates.get(name);
+    if(saved)Object.assign(this,saved);
+    else{
+      const l=this.activeLevel;this.map=Uint8Array.from(l.solid);this.tiles=Uint8Array.from(l.tiles);this.patches=new Map();
+      this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=l.objects.map(([kind,x,y])=>({kind,x,y,baseY:y,vx:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0}));
+      this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
+    }
+    this.effects=[];this.bumps=new Map();this.popup=null;
+  }
+  tryPipe(input){
+    const p=this.player;if(p.carrying>=0)return false;
+    for(const pipe of this.activeLevel.pipes||[]){
+      if(Math.abs(p.x+8-pipe.x-16)>7)continue;
+      const enter=pipe.direction==='down'?input.down&&p.grounded&&Math.abs(p.y+p.h-pipe.y)<3:(input.up||input.jump)&&p.vy<=0&&Math.abs(p.y-pipe.y)<7;
+      if(!enter)continue;
+      this.state='pipe';this.transition={...pipe,phase:'enter',ticks:0,mouth:pipe.y,clip:pipe.direction==='down'?'above':'below'};
+      p.x=pipe.x+8;p.vx=0;p.vy=0;p.flight=0;p.wag=0;p.tail=0;p.crouched=p.big&&p.h===16;
+      this.sound('pipe');this.event('pipe-enter');return true;
+    }
+    return false;
+  }
+  updatePipe(){
+    const t=this.transition,p=this.player;t.ticks++;
+    if(t.phase==='enter'){
+      p.y+=t.direction==='down'?1.5:-1.5;
+      if(t.ticks>=24){
+        this.switchArea(t.target);t.phase='exit';t.ticks=0;t.mouth=t.spawnY;t.clip=t.exit==='up'?'above':'below';
+        p.x=t.spawnX;p.y=t.exit==='up'?t.spawnY:t.spawnY-p.h;p.vx=0;p.vy=0;p.grounded=false;
+        this.event('area-changed');
+      }
+    }else{
+      p.y+=t.exit==='up'?-1.5:1.5;
+      if(t.ticks>=24){p.y=t.exit==='up'?t.spawnY-p.h:t.spawnY;p.oldJump=true;p.invul=Math.max(p.invul,30);this.state='playing';this.transition=null;this.event('pipe-exit');}
+    }
   }
   restart(auto = this.auto) {
     this.score=0; this.coins=0; this.lives=3; this.frame=0;
@@ -48,8 +90,9 @@ export class Game {
     else this.sound('coin');
   }
   cell(x,y) {
-    if (x<0 || x>=2816) return 1;
-    if (y<0 || y>=256) return 0;
+    if (x<0 || x>=this.areaWidth) return 1;
+    if(y<0)return this.sky.get(`${Math.floor(x/16)},${Math.floor(y/16)}`)?.solid||0;
+    if (y>=256) return 0;
     return this.map[Math.floor(y/16)*256+Math.floor(x/16)];
   }
   hard(x,y) { const t=this.cell(x,y); return t!==0 && t!==5; }
@@ -58,7 +101,7 @@ export class Game {
     return this.hard(x+2,y+h-1)||this.hard(x+13,y+h-1);
   }
   moveX(body,amount,h=body.h||16) {
-    const next=clamp(body.x+amount,0,2802);
+    const next=clamp(body.x+amount,0,this.areaWidth-14);
     if(!this.wall(next,body.y,h)){body.x=next;return false;}
     let resolved=next;
     for(let ty=Math.floor(body.y/16);ty<=Math.floor((body.y+h-1)/16);ty++){
@@ -68,7 +111,7 @@ export class Game {
         if(amount<0)resolved=Math.max(resolved,(tx+1)*16-2);
       }
     }
-    body.x=clamp(resolved,0,2802);return true;
+    body.x=clamp(resolved,0,this.areaWidth-14);return true;
   }
   updateEffects(){
     for(const effect of this.effects){effect.x+=effect.vx;effect.y+=effect.vy;effect.vy+=effect.gravity;effect.life--;}
@@ -263,6 +306,7 @@ export class Game {
     const controls=this.auto?this.automaticInput():input;
     const {left=false,right=false,jump=false,run=false,down=false}=controls;
     const p=this.player;this.frame++;
+    if(this.state==='pipe'){this.updatePipe();return;}
     this.updateEffects();
     if(this.popup&&--this.popup.ticks<=0)this.popup=null;
     else if(this.popup)this.popup.y-=.35;
@@ -319,7 +363,7 @@ export class Game {
     if(p.raccoon&&p.wag>0){if(p.flight>0)p.vy=Math.min(p.vy,-2.7);else if(p.vy>1)p.vy=1;}
     p.oldJump=jump;
     if(this.moveX(p,p.vx))p.vx=0;
-    p.x=clamp(p.x,0,2780);
+    p.x=clamp(p.x,0,this.areaWidth-36);
     const previousBottom=p.y+p.h;
     p.vy=Math.min(p.vy+.3,7);let ny=p.y+p.vy;p.grounded=false;
     if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h)){ny=Math.floor((ny+p.h)/16)*16-p.h;p.vy=0;p.grounded=true;this.stompChain=0;}
@@ -330,25 +374,26 @@ export class Game {
     }
     p.y=ny;
     if(p.y<-320){p.y=-320;p.vy=Math.max(0,p.vy);}
+    if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
     this.updatePower();this.updateEnemies(previousBottom);p.travel+=Math.abs(p.vx);
-    if(p.x+14>2672&&p.x<2704&&p.y<152&&p.y+p.h>112){
+    if(this.area==='main'&&p.x+14>2672&&p.x<2704&&p.y<152&&p.y+p.h>112){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
   }
-  get camera() { return clamp(this.player.x-104,0,2496); }
-  get cameraY() { return clamp(this.player.y-64,-384,0); }
+  get camera() { return clamp(this.player.x-104,0,Math.max(0,this.areaWidth-320)); }
+  get cameraY() { return this.area==='bonus'?0:clamp(this.player.y-64,-384,0); }
   snapshot() {
     const p=this.player,cam=this.camera;
     const near=entity=>entity.x>=cam-20&&entity.x<cam+340;
     return {
       coordinates:'World pixels; origin top-left; x right, y down. View 320x256, terrain ends at y224.',
-      state:this.state,paused:this.paused,protectedDemo:this.auto,frame:this.frame,camera:cam,cameraY:this.cameraY,
+      state:this.state,area:this.area,transition:this.transition,paused:this.paused,protectedDemo:this.auto,frame:this.frame,camera:cam,cameraY:this.cameraY,
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      goal:{x:2680,y:120},effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      goal:this.area==='main'?{x:2680,y:120}:null,pipes:this.activeLevel.pipes||[],effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

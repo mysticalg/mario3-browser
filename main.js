@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.6.1';
-import {Parallax} from './parallax.js?v=0.6.1';
-import {GameAudio} from './audio.js?v=0.6.1';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.6.1';
-import {ControllerInput} from './input.js?v=0.6.1';
-import {pixelText} from './pixel-font.js?v=0.6.1';
-const VERSION='0.6.1';
+import {VisualEffects} from './effects.js?v=0.7.0';
+import {Parallax} from './parallax.js?v=0.7.0';
+import {GameAudio} from './audio.js?v=0.7.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.7.0';
+import {ControllerInput} from './input.js?v=0.7.0';
+import {pixelText} from './pixel-font.js?v=0.7.0';
+const VERSION='0.7.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -16,7 +16,7 @@ const touchControls=document.querySelector('.touch-controls');
 const touchHome=document.createComment('touch-controls-home');touchControls.before(touchHome);
 let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStepping=false,accumulator=0,lastTime=0;
 let padState=null,controllerLabel='';
-let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0;
+let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles;
 const dynamicCells=new Set();
 const testMode=new URLSearchParams(location.search).has('test');
 
@@ -47,7 +47,7 @@ function pollController(){
   if(!started){if(edges.start||edges.jump)start(false);return;}
   if(edges.start){pause();return;}
   if(edges.restart){start(false);return;}
-  if(!game.paused&&state&&(state.left||state.right||state.jump||state.run||state.down))game.auto=false;
+  if(!game.paused&&state&&(state.left||state.right||state.jump||state.run||state.down||state.up))game.auto=false;
 }
 function input(){
   return {
@@ -55,7 +55,8 @@ function input(){
     right:keyboard.has('ArrowRight')||keyboard.has('KeyX')||touch.has('right')||!!padState?.right,
     jump:keyboard.has('Space')||keyboard.has('ArrowUp')||touch.has('jump')||!!padState?.jump,
     run:keyboard.has('ShiftLeft')||keyboard.has('ShiftRight')||touch.has('run')||!!padState?.run,
-    down:keyboard.has('ArrowDown')||keyboard.has('KeyS')||touch.has('down')||!!padState?.down
+    down:keyboard.has('ArrowDown')||keyboard.has('KeyS')||touch.has('down')||!!padState?.down,
+    up:keyboard.has('ArrowUp')||keyboard.has('KeyW')||!!padState?.up
   };
 }
 function step(){
@@ -68,7 +69,8 @@ function step(){
 }
 function drawSprite(id,x,y,height=16){
   if(height<=0||x<-24||x>320||y-renderCameraY>224||y+height-renderCameraY<0)return;
-  ctx.drawImage(atlas,(id%32)*16,Math.floor(id/32)*32,16,height,Math.round(x),Math.round(y),16,height);
+  const source=id<256?(game.area==='bonus'?bonusTiles:skyTiles):atlas;
+  ctx.drawImage(source,(id%32)*16,Math.floor(id/32)*32,16,height,Math.round(x),Math.round(y),16,height);
 }
 function text(value,x,y,size=8,color='#fcfcfc',align='left',outline=false){
   pixelText(ctx,value,x,y,{scale:size>=12?2:1,color,align,outline});
@@ -95,8 +97,10 @@ function render(alpha=1){
   lastPresentation={alpha,playerX:px,playerY:py,camera:cam,cameraY:cy};
   ctx.imageSmoothingEnabled=false;ctx.fillStyle='#a4fcf0';ctx.fillRect(0,0,320,256);
   ctx.save();ctx.beginPath();ctx.rect(0,0,320,224);ctx.clip();
-  parallax.draw(ctx,cam,cy);ctx.translate(0,-cy);
-  ctx.drawImage(world,cam,0,320,224,0,0,320,224);
+  if(game.area==='main')parallax.draw(ctx,cam,cy);else{ctx.fillStyle='#000';ctx.fillRect(0,0,320,224);}
+  ctx.translate(0,-cy);
+  ctx.drawImage(game.area==='bonus'?bonusWorld:world,cam,0,320,224,0,0,320,224);
+  for(const tile of game.sky.values())if(tile.id!==0x80)drawSprite(tile.id,tile.tx*16-cam,tile.ty*16);
   for(const off of dynamicCells){
     const id=game.tiles[off],bump=game.bumps.get(off);
     if(id!==0x80)drawSprite(id,(off%256)*16-cam,Math.floor(off/256)*16-(bump?Math.sin(bump.age/10*Math.PI)*3:0));
@@ -138,11 +142,16 @@ function render(alpha=1){
   if(p.crouched){playerId=293+(p.facing==='right'?1:0);drawHeight=32;drawY-=16;}
   if(game.state==='dying'){playerId=288;drawHeight=16;}
   fx.ghosts(ctx,game,cam,p.raccoon?(_,x,y)=>drawRaccoon(x,y,p):drawSprite,playerId);
-  if(game.state==='dying'||game.auto||p.invul===0||game.frame%6<3){
+  ctx.save();
+  if(game.state==='pipe'){
+    ctx.beginPath();if(game.transition.clip==='above')ctx.rect(0,-384,320,game.transition.mouth+384);else ctx.rect(0,game.transition.mouth,320,640);ctx.clip();
+  }
+  if(game.state==='dying'||game.state==='pipe'||game.auto||p.invul===0||game.frame%6<3){
     if(p.raccoon&&game.state!=='dying'){
       drawRaccoon(px-cam,py-(p.crouched?16:0),p);
     }else actor(playerId,px-cam,drawY,drawHeight);
   }
+  ctx.restore();
   if(game.state!=='complete')drawSprite(280+Math.floor(game.frame/8)%3,2680-cam,120);
   fx.foreground(ctx,cam);
   if(game.popup)text(game.popup.text,Math.floor(game.popup.x-cam),Math.floor(game.popup.y),7,'#fcfcfc','left',true);
@@ -153,7 +162,7 @@ function render(alpha=1){
   }
   ctx.restore();
   ctx.fillStyle='#10151c';ctx.fillRect(0,224,320,32);
-  text('WORLD 1-1',7,236);text(`M ×${game.lives}`,91,236);text(String(game.score).padStart(6,'0'),157,236);text(`$${String(game.coins).padStart(2,'0')}`,276,236);
+  text(game.area==='bonus'?'BONUS':'WORLD 1-1',7,236);text(`M ×${game.lives}`,91,236);text(String(game.score).padStart(6,'0'),157,236);text(`$${String(game.coins).padStart(2,'0')}`,276,236);
   text(`TIME ${String(game.clock).padStart(3,'0')}`,7,249,8,'#bec9d7');
   const meter=clamp(Math.floor(p.powerMeter/60*7),0,7);
   text('P '+'>'.repeat(meter)+'·'.repeat(7-meter),91,249,8,p.flight>0||meter===7?'#ffe28b':'#bec9d7');
@@ -162,7 +171,7 @@ function render(alpha=1){
 }
 function syncUI(){
   if(!game)return;
-  const stamp=[started,game.state,game.paused,game.auto,game.score,game.coins].join('|');
+  const stamp=[started,game.state,game.area,game.paused,game.auto,game.score,game.coins].join('|');
   if(stamp===uiStamp)return;
   uiStamp=stamp;
   const end=['complete','gameover'].includes(game.state);
@@ -182,9 +191,9 @@ function syncUI(){
     $('pause-description').textContent='Your adventure is right where you left it.';
     $('resume-btn').textContent='Resume game';$('menu-restart-btn').textContent='Start again';
   }
-  $('mode-status').textContent=!started?'Ready to play':game.paused?'Paused':game.auto?'Protected preview · move to play':game.state==='complete'?'Course complete':game.state==='gameover'?'Game over':'Playing';
+  $('mode-status').textContent=!started?'Ready to play':game.paused?'Paused':game.auto?'Protected preview · move to play':game.state==='complete'?'Course complete':game.state==='gameover'?'Game over':game.state==='pipe'?'Travelling through pipe':game.area==='bonus'?'Bonus room · jump up into exit pipe':'Playing';
 }
-const actionKeys=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyS','Space','KeyZ','KeyX','ShiftLeft','ShiftRight']);
+const actionKeys=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyS','KeyW','Space','KeyZ','KeyX','ShiftLeft','ShiftRight']);
 window.addEventListener('keydown',event=>{
   if(event.target.closest?.('details')&&event.target!==canvas)return;
   if(actionKeys.has(event.code)){
@@ -204,9 +213,9 @@ window.addEventListener('keydown',event=>{
 window.addEventListener('keyup',event=>keyboard.delete(event.code));
 window.addEventListener('blur',()=>{
   keyboard.clear();touch.clear();document.querySelectorAll('.pressed').forEach(el=>el.classList.remove('pressed'));
-  if(started&&game?.state==='playing'){game.paused=true;syncUI();render();}
+  if(started&&['playing','pipe'].includes(game?.state)){game.paused=true;syncUI();render();}
 });
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&started&&game?.state==='playing'){game.paused=true;keyboard.clear();touch.clear();syncUI();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&started&&['playing','pipe'].includes(game?.state)){game.paused=true;keyboard.clear();touch.clear();syncUI();}});
 for(const button of document.querySelectorAll('[data-control]')){
   button.addEventListener('pointerdown',event=>{
     event.preventDefault();button.setPointerCapture(event.pointerId);touch.add(button.dataset.control);button.classList.add('pressed');
@@ -247,7 +256,7 @@ function loop(now){
   if(game){
     if(!started||game.paused)pollController();
     if(!manualStepping){accumulator+=elapsed;while(accumulator+1e-7>=STEP_MS){accumulator=Math.max(0,accumulator-STEP_MS);step();}}
-    audio.update(started&&!game.paused&&game.state==='playing',game.clock<100,game.paused);
+    audio.update(started&&!game.paused&&game.state==='playing',game.clock<100,game.paused,game.area==='bonus'?'underground':'overworld');
     render(manualStepping||game.paused||!started?1:clamp(accumulator/STEP_MS,0,1));
   }
   requestAnimationFrame(loop);
@@ -260,8 +269,9 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.6.1',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png')
-]).then(([level,background,sprites,raccoon,leaf,...layers])=>{
+  fetch(new URL('./assets/level.json?v=0.7.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png')
+]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles])=>{
+  bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];
   raccoonArt=raccoon;leafArt=leaf;parallax=new Parallax(layers);
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;
   const backgroundCtx=scenery.getContext('2d');backgroundCtx.drawImage(background,0,0);
@@ -273,6 +283,8 @@ window.gameReady=Promise.all([
   for(let i=0;i<pixels.data.length;i+=4)if(pixels.data[i]===sky[0]&&pixels.data[i+1]===sky[1]&&pixels.data[i+2]===sky[2])pixels.data[i+3]=0;
   backgroundCtx.putImageData(pixels,0,0);
   for(let off=0;off<level.tiles.length;off++)if(level.solid[off]===0&&level.tiles[off]>=0x1f&&level.tiles[off]<=0x24)backgroundCtx.clearRect((off%256)*16,Math.floor(off/256)*16,16,16);
+  skyTiles=document.createElement('canvas');skyTiles.width=512;skyTiles.height=320;const tileCtx=skyTiles.getContext('2d');tileCtx.drawImage(sprites,0,0);const tilePixels=tileCtx.getImageData(0,0,512,256);
+  for(let i=0;i<tilePixels.data.length;i+=4)if(tilePixels.data[i]===sky[0]&&tilePixels.data[i+1]===sky[1]&&tilePixels.data[i+2]===sky[2])tilePixels.data[i+3]=0;tileCtx.putImageData(tilePixels,0,0);
   world=scenery;atlas=sprites;game=new Game(level,tone);$('loading').hidden=true;
   if(testMode)window.__test={game,start,render,controllers,audio,fx,presentation:()=>lastPresentation};
   render();return true;

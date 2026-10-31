@@ -89,3 +89,17 @@ other original systems are still incomplete.
 0.6.1 validation: 47 engine tests and 68 local browser checks pass. Inspected
 shell shake/brick-impact screenshots and the unmodified skill client gameplay
 capture. Corrected opaque sky patches left by removed temporary blocks.
+
+0.7.0 continued reverse engineering: traced PRG015 W101 header alternate pointer
+BC93 in bank 15 to file 1FCAC (not the coincidentally duplicated stream in bank 13).
+Decoded original 1-1 bonus stream: 12 coin "3", diamond rectangles, steps, ceiling
+pipes, palette 5. E8/42/80 enters at bonus X136; E1/71/19 returns X2328 to pipe top
+Y176. Recovered 45 omitted sky tiles from original main generator commands,
+including high enterable pipe at X2256 / Y-96. Added sky collision/rendering and
+independent area state, clipped pipe animations, score/suit/coin/clock persistence,
+pause and main-start death. Added ROM underground normal/hurry recordings and
+single-segment loop detection using repeating music-track counters. Self-contained
+bonus/sky exporter added with exact pointer provenance. 53 engine / 79 browser
+checks pass locally, including an input-driven raccoon approach/landing/entry and
+keyboard, pad-Up, touch-Down and touch-Jump round trips. Goal remains active;
+other levels, world map, other suits and remaining mechanics are incomplete.

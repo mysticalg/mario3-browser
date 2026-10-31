@@ -29,6 +29,24 @@ try{
     const t=window.__test,g=t.game;g.player.x=500;t.render();const a=JSON.parse(window.render_game_to_text()).parallax;g.player.x=600;t.render();const b=JSON.parse(window.render_game_to_text()).parallax;return {a,b};
   });
   check('three generated layers scroll at distinct parallax speeds',layers.a.length===3&&layers.b[0].offset-layers.a[0].offset<layers.b[1].offset-layers.a[1].offset&&layers.b[1].offset-layers.a[1].offset<layers.b[2].offset-layers.a[2].offset);
+  await seed(()=>{const g=window.__test.game;g.restart(false);Object.assign(g.player,{raccoon:true,big:true,h:32,x:2264,y:-128,grounded:true});});
+  await page.keyboard.down('ArrowDown');await advance(30);await page.keyboard.up('ArrowDown');
+  check('Down enters the actual high sky pipe',(await snapshot()).state==='pipe');
+  await page.keyboard.press('KeyP');const pipeTicks=(await snapshot()).transition.ticks;await advance(300);
+  check('pipe animation pauses with the game',(await snapshot()).transition.ticks===pipeTicks);
+  await page.keyboard.press('KeyP');await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await advance(100);
+  check('losing focus also pauses pipe travel',(await snapshot()).paused&&(await snapshot()).transition.ticks===pipeTicks);
+  await page.keyboard.press('KeyP');await advance(900);
+  check('pipe reaches original bonus room with suit intact',(await snapshot()).area==='bonus'&&(await snapshot()).player.raccoon&&(await snapshot()).coinsVisible.length===12);
+  await page.waitForFunction(()=>window.__test.audio.snapshot().ready);await page.waitForTimeout(60);
+  check('bonus room plays original underground music',(await page.evaluate(()=>window.__test.audio.snapshot())).track==='underground');
+  await page.screenshot({path:path.join(output,'bonus-room.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game,c=g.collectibles[0];Object.assign(g.player,{x:c.x,y:c.y,vy:0,growing:0});});await advance(30);const bonusCoins=(await snapshot()).coins;
+  check('original bonus coins can be collected',bonusCoins>0);
+  await seed(()=>Object.assign(window.__test.game.player,{x:360,y:64,h:32,big:true,crouched:false,vy:-2,vx:0,grounded:false,oldJump:false}));
+  await page.keyboard.down('ArrowUp');await advance(30);await page.keyboard.up('ArrowUp');await advance(900);
+  check('bonus exit returns through the ROM-linked main pipe',(await snapshot()).area==='main'&&(await snapshot()).player.x===2328&&(await snapshot()).coins===bonusCoins);
+  await page.screenshot({path:path.join(output,'bonus-return.png'),fullPage:true});
   await page.reload();await page.evaluate(()=>window.gameReady);
   await page.click('#start-btn');
   await seed(()=>{const g=window.__test.game;g.enemies.forEach(e=>e.state=0);Object.assign(g.enemies[0],{kind:2,state:2,x:110,y:192,h:16,vx:0,vy:0,wake:2,cooldown:0});});
@@ -61,7 +79,7 @@ try{
   const audioState=await page.evaluate(()=>window.__test.audio.snapshot());
   check('original ROM music decoded and playing',audioState.state==='running'&&audioState.scheduled>0&&audioState.source==='original-rom');
   const renderedAudio=await page.evaluate(async()=>{
-    const {GameAudio}=await import('./audio.js?v=0.6.1');const results=[];
+    const {GameAudio}=await import('./audio.js?v=0.7.0');const results=[];
     for(const name of ['jump','jump-big','coin','bump','break','stomp','kick','appear','powerup','oneup','shrink','death','clear','gameover','warning','tail']){
       const context=new OfflineAudioContext(1,44100*2,44100),a=new GameAudio();a.context=context;a.enabled=true;await a.load();a.effect(name);
       const buffer=await context.startRendering(),data=buffer.getChannelData(0);let energy=0,peak=0;
@@ -119,6 +137,10 @@ try{
   await seed(()=>{window.__pads[0].buttons[0].pressed=false;Object.assign(window.__test.game.player,{raccoon:true,big:true,h:32,y:80,vy:3,grounded:false,flight:100,wag:0,oldJump:false});});await advance(30);
   await seed(()=>window.__pads[0].buttons[0].pressed=true);await advance(60);
   check('controller A flaps upward during raccoon flight',(await snapshot()).player.vy<0&&(await snapshot()).player.flight>0);
+  await seed(()=>{const g=window.__test.game;g.switchArea('bonus');Object.assign(g.player,{x:360,y:64,h:32,big:true,crouched:false,vy:-2,vx:0,flight:0,wag:0,grounded:false});window.__pads[0].buttons[0].pressed=false;window.__pads[0].buttons[12].pressed=true;});await advance(30);
+  check('controller D-pad Up enters ceiling pipe',(await snapshot()).state==='pipe');
+  await seed(()=>window.__pads[0].buttons[12].pressed=false);await advance(900);
+  check('controller-driven pipe trip returns to main level',(await snapshot()).area==='main');
   await seed(()=>{window.__pads[0].buttons[0].pressed=false;window.__pads[0].buttons[9].pressed=true;});await advance(30);
   check('controller Start pauses',(await snapshot()).paused);
   const held=(await snapshot()).frame;await advance(300);check('held Start does not toggle repeatedly',(await snapshot()).paused&&(await snapshot()).frame===held);
@@ -209,6 +231,14 @@ try{
   await mobile.evaluate(()=>window.advanceTime(60));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   check('touch Jump flaps upward during raccoon flight',await mobile.evaluate(()=>window.__test.game.player.vy<0&&window.__test.game.player.flight>0));
   await mobile.screenshot({path:path.join(output,'mobile-gameplay.png'),fullPage:true});
+  await mobile.evaluate(()=>{const g=window.__test.game;g.restart(false);Object.assign(g.player,{x:2264,y:-112,grounded:true});});
+  const downBox=await mobile.locator('[data-control="down"]').boundingBox();
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:downBox.x+downBox.width/2,y:downBox.y+downBox.height/2,id:13}]});await mobile.evaluate(()=>window.advanceTime(30));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await mobile.evaluate(()=>window.advanceTime(900));
+  check('touch Down enters the original bonus room',await mobile.evaluate(()=>window.__test.game.area==='bonus'));
+  await mobile.screenshot({path:path.join(output,'mobile-bonus.png'),fullPage:true});
+  await mobile.evaluate(()=>Object.assign(window.__test.game.player,{x:360,y:64,vy:-2,vx:0,grounded:false,oldJump:false}));
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:jumpBox.x+jumpBox.width/2,y:jumpBox.y+jumpBox.height/2,id:14}]});await mobile.evaluate(()=>window.advanceTime(30));await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await mobile.evaluate(()=>window.advanceTime(900));
+  check('touch Jump exits the bonus through its ceiling pipe',await mobile.evaluate(()=>window.__test.game.area==='main'));
   await mobile.evaluate(()=>window.__test.start(false));
   const runBox=await mobile.locator('[data-control="run"]').boundingBox();
   const rightPoint={x:rightBox.x+rightBox.width/2,y:rightBox.y+rightBox.height/2,id:20},runPoint={x:runBox.x+runBox.width/2,y:runBox.y+runBox.height/2,id:21};

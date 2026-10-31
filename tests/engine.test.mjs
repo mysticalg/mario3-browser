@@ -137,3 +137,31 @@ test('moving shells break bricks even while Mario is small and trigger question 
 test('hitting a block from below defeats an enemy standing on it',()=>{
  const g=runway(),e=g.enemies[0];g.patch(10,10,0x67,2);Object.assign(e,{kind:1,state:1,x:160,y:144,h:16,vx:0,vy:0});g.head(10,10);assert.ok(e.state<0);assert.equal(g.score,100);assert.equal(g.map[10*256+10],2);assert.ok(g.events.some(e=>e.type==='block-bumped-enemy'));
 });
+
+function enterBonus(g){Object.assign(g.player,{x:2264,y:-112,h:16,big:false,grounded:true,vx:0,vy:0});g.update({down:true});assert.equal(g.state,'pipe');steps(g,48);assert.equal(g.area,'bonus');assert.equal(g.state,'playing');}
+test('ROM sky pipe is solid above the old viewport and enters original bonus room',()=>{
+ const g=fixture();assert.equal(g.cell(2264,-96),1);const time=g.clock;enterBonus(g);assert.equal(g.collectibles.length,12);assert.equal(g.player.x,136);assert.equal(g.player.y,64);assert.equal(g.clock,time);assert.equal(g.areaWidth,512);assert.equal(g.cameraY,0);
+});
+test('bonus exit follows ROM junction back to the main-level pipe',()=>{
+ const g=fixture();enterBonus(g);Object.assign(g.player,{x:360,y:64,vy:-2,vx:0,grounded:false,oldJump:false});g.update({jump:true});assert.equal(g.state,'pipe');steps(g,48);assert.equal(g.area,'main');assert.equal(g.player.x,2328);assert.equal(g.player.y+g.player.h,176);
+});
+test('area transitions preserve suit, score, coins and changed main terrain',()=>{
+ const g=fixture();g.patch(10,10,0x5f,1);g.score=500;g.coins=5;Object.assign(g.player,{raccoon:true,big:true,h:32,x:2264,y:-128,grounded:true});g.update({down:true});steps(g,48);assert.equal(g.player.raccoon,true);assert.equal(g.score,500);assert.equal(g.coins,5);
+ g.switchArea('main');assert.equal(g.tiles[10*256+10],0x5f);assert.equal(g.player.raccoon,true);
+});
+test('bonus coins stay collected on revisits and its short camera cannot reach the goal',()=>{
+ const g=fixture();enterBonus(g);const c=g.collectibles[0];Object.assign(g.player,{x:c.x,y:c.y,vy:0});g.update();assert.equal(c.got,true);const coins=g.coins;g.switchArea('main');g.switchArea('bonus');assert.equal(g.collectibles[0].got,true);assert.equal(g.coins,coins);g.player.x=480;assert.equal(g.camera,192);assert.equal(g.snapshot().goal,null);
+});
+test('pipe animation freezes when paused and death resets to the main level',()=>{
+ const g=fixture();Object.assign(g.player,{x:2264,y:-112,grounded:true});g.update({down:true});g.paused=true;steps(g,30);assert.equal(g.transition.ticks,0);g.paused=false;steps(g,48);g.die();steps(g,56);assert.equal(g.area,'main');assert.equal(g.player.x,24);
+});
+
+test('raccoon can fly to the real high pipe and descend into the bonus room',()=>{
+ const g=fixture();let support=0;while(support<224&&!g.cell(1712,support))support+=16;
+ Object.assign(g.player,{x:1704,y:support-32,h:32,big:true,raccoon:true,powerMeter:60,vx:3.6,grounded:true});
+ let phase='fly';for(let i=0;i<420&&g.area==='main';i++){
+  if(phase==='fly'&&g.player.x>2230)phase='brake';if(phase==='brake'&&g.player.vx<=.1)phase='land';
+  g.update(phase==='fly'?{right:true,run:true,jump:i%10<5}:phase==='brake'?{left:true,run:true}:{down:true});
+ }
+ assert.equal(g.area,'bonus');assert.equal(g.player.raccoon,true);
+});

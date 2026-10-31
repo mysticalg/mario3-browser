@@ -53,7 +53,7 @@ original sound driver and NES audio emulation. The game pauses when the tab lose
 
 This is a playable development prototype, **not the complete original game**.
 Physics and enemy behaviour are native reconstructions. The world map, bonus
-pipe transitions, fire/tanooki/frog/hammer suits and plant fireballs remain
+additional pipe transitions, fire/tanooki/frog/hammer suits and plant fireballs remain
 unfinished. Power blocks release mushrooms for small Mario and leaves for Super Mario. Some layout decoration and
 enemy poses differ from the original.
 
@@ -203,3 +203,31 @@ restores Koopa height and faces Mario. Shells now break bricks and hit question
 blocks independently of Mario's size; hitting blocks from below also defeats an
 enemy standing on top. This continues the reverse-engineering work; bonus areas
 and other original gameplay systems remain incomplete.
+
+## 0.7.0 original World 1-1 bonus room
+
+The hidden high pipe now reaches the original blue-block bonus room with the big
+coin "3". Fly above the main course near the end, land on the high pipe and hold
+Down. Jump up into the ceiling pipe beyond the room's steps to return to the
+ROM-linked main-level exit. D-pad Up also enters a ceiling pipe; touch Jump works.
+
+This is decoded from the supplied ROM's actual alternate-area pointer: main
+header at file 1FB92, alternate CPU address BC93 in PRG bank 15, bonus stream at
+file 1FCAC. The 12 coins, diamond-block rectangles, stairs, ceiling pipes and
+palette 5 come from the original room records. The E8/42/80 and E1/71/19 junctions
+lead to the bonus entrance and return pipe. The exporter is self-contained:
+`python tools/export-w101-bonus.py your-rom.nes FCEUX.pal` (Pillow required).
+
+Restored 45 terrain tiles above the old viewport, including the high entrance
+pipe. Independent area state preserves collected coins and changed main terrain;
+suits, score and lives survive the trip. Pipe movement freezes the game timer and
+pauses normally. Death still respawns at the main course start. Area-specific
+original underground music (and its hurry version) is rendered with the existing
+ROM sound-driver tool. For its single-segment loop, the exporter detects repeating
+music-track offsets/rest counters rather than relying only on segment index.
+
+53 engine checks and 79 browser checks pass locally, including a controller that
+flies to the high pipe with ordinary movement inputs, full return trip, coin
+collection/persistence, suit preservation, pause and keyboard/pad/touch pipe
+controls. This implements one original bonus area; other levels and original
+systems remain unfinished.
