@@ -320,6 +320,14 @@ try{
   check('next course preserves score, coins and raccoon suit',(await snapshot()).course==='1-3'&&(await snapshot()).score>=2000&&(await snapshot()).coins===8&&(await snapshot()).player.raccoon);
   check('cleared course is marked on route map',await page.getByRole('button',{name:'✓ World 1-2',exact:true}).isVisible());
   await page.screenshot({path:path.join(output,'world-1-3-minimap.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game;g.enemies.forEach(e=>{if(e.kind!==6)e.state=0;});Object.assign(g.player,{x:260,y:192,big:false,raccoon:false,fire:false,h:16,invul:1000,vx:0,vy:0});});await advance(1400);
+  check('World 1-3 original brother patrols and throws',(await snapshot()).enemies.some(e=>e.kind===6&&e.x>336)&&(await snapshot()).boomerangs.some(b=>b.hold===0));
+  await seed(()=>window.__test.game.player.invul=0);await page.screenshot({path:path.join(output,'boomerang-bro-throw.png'),fullPage:true});await seed(()=>window.__test.game.player.invul=1000);
+  await page.keyboard.press('KeyP');const heldBoom=JSON.stringify((await snapshot()).boomerangs);await advance(400);
+  check('pause freezes returning boomerangs',JSON.stringify((await snapshot()).boomerangs)===heldBoom);await page.keyboard.press('KeyP');
+  await advance(2200);
+  check('brother catches returning boomerang',(await snapshot()).events.some(e=>e.type==='boomerang-caught'));
+
   await page.reload();await page.evaluate(()=>window.gameReady);
   check('course clear marker survives reload',await page.getByRole('button',{name:'✓ World 1-2',exact:true}).isVisible());
   await seed(()=>{window.__test.start(false);window.__test.game.state='complete';window.__pads=[{index:0,id:'Course progression test pad',mapping:'standard',connected:true,axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))}];});await advance(30);

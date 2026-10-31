@@ -195,3 +195,19 @@ Goomba walking speed to.5. Fixed interpolation identity when reusing dead slots.
 emergence and unmodified skill-client hills screenshots. Goal remains active:
 Boomerang Brothers/microgoombas, whistle/secret routes, later worlds/full map and
 remaining original mechanics unfinished.
+
+0.12.0 continued reverse engineering: restored two82 Boomerang Brothers in1-3.
+Read PRG004 patrol/throw/draw plus PRG007 held-object, fixedpoint arc/reversal and
+catch routines. Executed original A499 patrol with original1-3 TileRAM and B8AB
+projectile in isolated fixtures; committed reusable trace tool and captures.
+102 tests include exact167-frame projectile fields/fractions/death-at-catch,
+18 native patrol samples over180 ticks, facing/held timing, owner death,
+projectile pool, damage, pause, Fire kills and native random-pool shift/hop gate.
+Added CHR78 original animated brother/boomerang assets and original queue4F3=04
+sound. Source draw adds8 to objectY; retained this separate visual offset so
+native collision/feet align. Native PRG0309-byte RNG algorithm added with a
+fixed startup seed; bro initialphase0 is deliberately deterministic, not a claim
+of matching campaign RNG history.108 browser checks pass locally, including
+normal-update throws, pause and catch. Viewed throw/flight capture and original
+skill-client1-3 gameplay. Goal stays active: microgoombas, whistle/secret routes,
+full worldmap and later worlds and other native mechanics remain unfinished.

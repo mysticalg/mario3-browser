@@ -63,3 +63,17 @@ horizontal movement come from PRG005 spawn setup and PRG004 ground-troop logic.
 Research reference and credit: [Southbird's SMB3 disassembly](https://github.com/captainsouthbird/smb3),
 PRG000 slope tables, PRG014 common generators, PRG015 plains and PRG016 hills.
 Original game data and graphics copyright Nintendo.
+
+Boomerang brother research: `boomerang-traces.json` contains167 successive
+original PRG007 B8AB projectile states and18 original PRG004 A499 patrol samples
+across180 ticks. The patrol fixture uses the decoded1-3 TileRAM; both fixtures
+use explicit zeroed initial counters and fixed actor/player positions. Reproduce:
+
+```
+node tools/trace-rom-bro.mjs your-rom.nes research/boomerang-traces.json
+```
+
+The pure4.4 fixed-point module is tested against every captured flight position,
+fraction, velocity, timer and phase through the original catch frame166. These
+isolated fixtures verify the named routines; they do not establish identical RNG
+history or cycle-exact behaviour for an entire played campaign.

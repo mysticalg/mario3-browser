@@ -1,3 +1,4 @@
+import {createBoomerang,stepBoomerang} from './boomerang.js?v=0.12.0';
 // A fixed 60 Hz simulation, with presentation interpolation between ticks.
 export const STEP_MS = 1000 / 60;
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -15,7 +16,7 @@ export class Game {
     this.reset();
   }
   createEnemies(level) {
-    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:[1,2].includes(kind)?-.5:-.65,vy:0,state:1,h:[2,5].includes(kind)?32:16,cooldown:0,...meta,...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
+    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:[1,2].includes(kind)?-.5:-.65,vy:0,state:1,h:[2,5,6].includes(kind)?32:16,cooldown:0,...meta,...(kind===6?{vx:0,facing:'left',broPhase:0,broSlot:i%5,broTimer:0,broCounter:0,broAnim:0,throwPose:0}:{}),...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
   }
   createSpawners(level){return (level.spawners||[]).map(s=>({...s,active:false,timer:96,cycle:0}));}
   setCourse(level,preserve=true){
@@ -28,6 +29,7 @@ export class Game {
   get course(){return this.level.id||'1-1';}
   get goal(){return this.level.goal||{x:2680,y:120};}
   reset() {
+    this.randomPool=Uint8Array.from([1,0,0,0,0,0,0,0,0]);
     this.area='main';this.areaStates=new Map();this.activeLevel=this.level;
     this.map = Uint8Array.from(this.level.solid);
     this.tiles = Uint8Array.from(this.level.tiles);
@@ -51,7 +53,7 @@ export class Game {
     this.effects = [];
     this.bumps = new Map();
     this.sky=new Map((this.level.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));this.transition=null;
-    this.fireballs=[];this.enemyFireballs=[];
+    this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
   }
   get areaWidth(){return this.activeLevel.playableWidth||2816;}
   switchArea(name){
@@ -65,7 +67,7 @@ export class Game {
       this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);this.spawners=this.createSpawners(l);
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
-    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];
+    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
   }
   tryPipe(input){
     const p=this.player;if(p.carrying>=0)return false;
@@ -216,7 +218,7 @@ export class Game {
     const p=this.player;
     if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
-    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];this.enemyFireballs=[];
+    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
     this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
@@ -308,6 +310,36 @@ export class Game {
     }
     this.enemyFireballs=this.enemyFireballs.filter(b=>!b.dead);
   }
+  randomize(){
+    let carry=((this.randomPool[0]^this.randomPool[1])&2)?1:0;
+    for(let i=0;i<9;i++){const next=this.randomPool[i]&1;this.randomPool[i]=(this.randomPool[i]>>1)|(carry<<7);carry=next;}
+  }
+  updateBro(e){
+    if(e.broTimer>0)e.broTimer--;if(e.throwPose>0)e.throwPose--;
+    if((this.frame&15)===0)e.facing=this.player.x>=e.x?'right':'left';
+    if((e.broPhase&1)===0){if(e.broTimer===0){e.broPhase=(e.broPhase+1)&255;e.broTimer=64;}e.vx=0;return;}
+    e.vx=(e.broPhase&3)===1?.5:-.5;e.broAnim+=2;
+    if((this.frame&255)===0&&(this.randomPool[(e.broSlot||0)+1]&128))e.vy=-3;
+    if(e.broTimer===0){e.broPhase=(e.broPhase+1)&255;e.broTimer=16;}
+    const old=e.broCounter;e.broCounter=(old+1)&255;
+    if((old&0xbf)===0x1f){
+      e.throwPose=15;
+      if(this.boomerangs.length+this.enemyFireballs.length<8){const used=new Set(this.boomerangs.map(b=>b.slot));let slot=0;while(used.has(slot))slot++;this.boomerangs.push(createBoomerang(e,slot));this.event('boomerang-thrown');}
+    }
+  }
+  updateBoomerangs(){
+    const p=this.player;
+    for(const b of this.boomerangs){
+      stepBoomerang(b,this.frame);
+      if(b.caught)this.event('boomerang-caught');
+      if(!b.dead&&b.hold===0){
+        if(b.age%12===1)this.sound('boomerang');
+        if(((this.frame+b.slot)&1)&&p.x+13>b.x+3&&p.x+3<b.x+13&&p.y+p.h>b.y+3&&p.y<b.y+13)this.hurt();
+      }
+      if(b.x<this.camera-32||b.x>this.camera+352||b.y<this.cameraY-48||b.y>this.cameraY+272)b.dead=true;
+    }
+    this.boomerangs=this.boomerangs.filter(b=>!b.dead);
+  }
   updateSpawners(){
     for(const s of this.spawners){
       if(!s.active){if(s.x<this.camera||s.x>=this.camera+320)continue;s.active=true;}
@@ -369,6 +401,7 @@ export class Game {
           ny=this.floorY-e.h;e.vy=[4,5].includes(e.kind)?-4:0;
         }
         e.y=ny;if(e.y>264)e.state=0;
+        if(e.kind===6&&e.state>0)this.updateBro(e);
       }
       if(this.state==='playing'&&e.state>0&&e.h>0&&p.x+13>e.x+2&&p.x+3<e.x+14&&p.y+p.h>e.y+2&&p.y<e.y+e.h){
         if(e.kind===3)this.hurt();
@@ -380,7 +413,7 @@ export class Game {
             if(e.state===1){e.state=2;e.y+=16;e.h=16;e.cooldown=15;e.wake=255;}
             else if(e.state===3){e.state=2;e.cooldown=15;e.wake=255;}
             else{e.state=3;e.vx=5;e.cooldown=15;}
-          }else e.state=-14;
+          }else{e.state=-14;if(e.kind===6){e.deathStyle='tumble';e.vy=-3;}}
           this.event('stomp');
         }else if(e.state===2&&e.cooldown===0&&p.runHeld&&!(p.carrying>=0)){p.carrying=i;e.vx=0;this.event('shell-picked-up');}
         else if(e.state===2&&e.cooldown===0){e.state=3;e.vx=p.x>e.x?-5:5;e.cooldown=15;this.score+=50;this.sound('kick');this.event('shell-kicked');}
@@ -428,7 +461,7 @@ export class Game {
     if(this.paused)return;
     const controls=this.auto?this.automaticInput():input;
     const {left=false,right=false,jump=false,run=false,down=false}=controls;
-    const p=this.player;this.frame++;
+    const p=this.player;this.frame++;this.randomize();
     if(this.state==='pipe'){this.updatePipe();return;}
     this.updateEffects();
     if(this.popup&&--this.popup.ticks<=0)this.popup=null;
@@ -503,7 +536,7 @@ export class Game {
     if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
-    this.updatePower();this.updateEnemies(previousBottom);this.updateSpawners();this.updateEnemyFireballs();p.travel+=Math.abs(p.vx);
+    this.updatePower();this.updateEnemies(previousBottom);this.updateSpawners();this.updateEnemyFireballs();this.updateBoomerangs();p.travel+=Math.abs(p.vx);
     if(this.area==='main'&&p.x+14>this.goal.x-8&&p.x<this.goal.x+24&&p.y<this.goal.y+32&&p.y+p.h>this.goal.y-8){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
@@ -519,7 +552,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      course:this.course,spawners:this.spawners.map(s=>({...s})),goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      course:this.course,spawners:this.spawners.map(s=>({...s})),goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),boomerangs:this.boomerangs.map(({owner,...b})=>({...b,ownerX:owner.x,ownerY:owner.y})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

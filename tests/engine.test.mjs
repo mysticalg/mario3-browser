@@ -325,3 +325,37 @@ test('browser pipe spawning matches all8 isolated original-ROM routine traces',(
   if(sample.objects.length){const actual=g.enemies[0],original=sample.objects[0];assert.deepEqual([actual.romId,actual.x,actual.y+208,actual.pipeTicks],[original.id,original.x,original.y,original.emerging]);}
  }
 });
+
+import {createBoomerang,stepBoomerang} from '../boomerang.js';
+test('boomerang fixed-point flight matches all167 original-ROM frames through catch',()=>{
+ const trace=JSON.parse(fs.readFileSync(new URL('../research/boomerang-traces.json',import.meta.url))),b=createBoomerang({x:100,y:100,state:1,kind:6,facing:'right'});
+ for(const r of trace.flight){stepBoomerang(b,r.t);for(const key of ['x','y','vx','vy','phase','verticalPhase','timer','hold'])assert.equal(b[key],r[key],`frame${r.t} ${key}`);assert.equal((b.fx&15)*16,r.fx);assert.equal((b.fy&15)*16,r.fy);assert.equal(b.dead,!r.id);}
+ assert.equal(b.caught,true);
+});
+test('both original Boomerang Brothers load with native patrol positions and timing',()=>{
+ const g=new Game(plains3);g.enemies=g.enemies.filter(e=>e.kind===6).slice(0,1);g.player.x=280;const trace=JSON.parse(fs.readFileSync(new URL('../research/boomerang-traces.json',import.meta.url)));
+ assert.equal(plains3.objects.filter(o=>o[0]===6).length,2);
+ for(let t=0;t<180;t++){g.frame=t;g.updateEnemies(0);const r=trace.walk.find(r=>r.t===t),e=g.enemies[0];if(r){assert.equal(Math.floor(e.x),r.x);assert.equal(Math.floor(e.y)+208,r.y);assert.equal((e.vx*16+256)%256,r.vx);assert.equal(e.broPhase,r.phase);assert.equal(e.broTimer,r.timer);assert.equal(e.broCounter,r.throwCounter);}}
+});
+test('brother faces Mario on16-tick cadence and holds a throw for15 ticks',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.kind===6);g.player.x=e.x+80;g.frame=16;g.updateBro(e);assert.equal(e.facing,'right');Object.assign(e,{broPhase:1,broTimer:50,broCounter:31});g.updateBro(e);assert.equal(e.throwPose,15);assert.equal(g.boomerangs.length,1);
+ const b=g.boomerangs[0];for(let f=0;f<15;f++)stepBoomerang(b,f);assert.equal(b.hold,0);assert.equal(b.age,0);stepBoomerang(b,15);assert.equal(b.age,1);
+});
+test('held boomerang disappears when its owner dies; released boomerang continues',()=>{
+ const owner={x:100,y:100,kind:6,state:1,facing:'left'},a=createBoomerang(owner),b=createBoomerang(owner);for(let f=0;f<16;f++)stepBoomerang(b,f);owner.state=-14;stepBoomerang(a,16);stepBoomerang(b,16);assert.equal(a.dead,true);assert.equal(b.dead,false);
+});
+test('boomerangs share a bounded eight-projectile pool and pause and course changes clear correctly',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.kind===6);g.enemyFireballs=Array.from({length:8},()=>({x:0,y:0}));Object.assign(e,{broPhase:1,broCounter:31,broTimer:20});g.updateBro(e);assert.equal(g.boomerangs.length,0);
+ g.enemyFireballs=[];e.broCounter=31;g.updateBro(e);assert.equal(g.boomerangs.length,1);g.paused=true;const before=JSON.stringify(g.boomerangs.map(({owner,...b})=>b));steps(g,30);assert.equal(JSON.stringify(g.boomerangs.map(({owner,...b})=>b)),before);g.setCourse(hills);assert.equal(g.boomerangs.length,0);
+});
+test('a released boomerang damages Mario while invulnerability prevents repeated hits',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.kind===6);Object.assign(g.player,{x:100,y:100,big:true,h:32});const b=createBoomerang(e);Object.assign(b,{hold:0,timer:50,fx:104*16,fy:104*16,vx:0,vy:0});g.boomerangs=[b];g.frame=1;g.updateBoomerangs();assert.equal(g.player.big,false);assert.ok(g.player.invul>0);g.frame=3;g.updateBoomerangs();assert.equal(g.state,'playing');
+});
+test('Fire Mario can defeat an original brother and cancel its held throw',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.kind===6);g.boomerangs=[createBoomerang(e)];g.fireballs=[{x:e.x+3,y:e.y+8,vx:0,vy:0,age:0,poof:0}];g.updateFireballs();assert.ok(e.state<0);g.updateBoomerangs();assert.equal(g.boomerangs.length,0);
+});
+
+test('original nine-byte random-pool rotation drives the brother hop gate',()=>{
+ const g=new Game(plains3);g.randomize();assert.deepEqual([...g.randomPool],[0,128,0,0,0,0,0,0,0]);g.randomPool.fill(0);g.randomPool[0]=2;g.randomize();assert.equal(g.randomPool[0],129);
+ const e=g.enemies.find(e=>e.kind===6);Object.assign(e,{broPhase:1,broTimer:30,vy:0});g.randomPool[e.broSlot+1]=128;g.frame=256;g.updateBro(e);assert.equal(e.vy,-3);e.vy=0;g.frame=257;g.updateBro(e);assert.equal(e.vy,0);
+});

@@ -363,3 +363,30 @@ inspected pipe-emergence and skill-client hills captures. Existing course,
 minimap, controller, fire, raccoon, plant and bonus-room checks still pass.
 Boomerang Brothers, microgoomba attacks, whistle/secret routes, later worlds and
 the full original overworld still need reconstruction.
+
+## 0.12.0 original Boomerang Brothers
+
+Restored both World1-3 Boomerang Brothers from their82 object records. Their
+half-pixel patrol,64/16-tick walk/pause phases,16-tick facing updates, throw
+counter and15-tick held-weapon pose follow PRG004. Original CHR page78 supplies
+walking/throwing brother frames and spinning boomerang frames; the ROM sound
+driver supplies the boomerang effect. The original nine-byte random-pool rotation
+is used for the periodic hop gate, starting from a deterministic prototype seed.
+Startup patrol phase is currently zero rather than a captured campaign RNG state.
+
+`boomerang.js` uses original4.4 fixed-point motion: held position, launch speed,
+vertical arc, delayed horizontal deceleration/reversal, return and catch. Its
+positions, fractional accumulators, velocities and phase/timer fields match all
+167 frames captured by executing the original ROM projectile routine.18 native
+patrol samples over180 ticks also match. Reproduce the fixtures with
+`node tools/trace-rom-bro.mjs your-rom.nes`; export graphics with
+`python tools/export-bro-assets.py your-rom.nes FCEUX.pal`.
+
+Released boomerangs damage Mario and continue if their owner dies; a held one is
+cancelled on owner death. They freeze on pause, clear on area/course changes,
+respect an eight-projectile pool, and can be caught by their living owner.
+Brothers can be stomped or defeated with fire/tail attacks. Validation:96 gameplay
+plus6 decoder checks (102 total),108 browser checks, inspected original-art
+throw/flight screenshot and the unmodified skill client's World1-3 gameplay.
+Whistle/secret routes, microgoomba attacks, later worlds, full original map and
+other remaining mechanics are still unfinished.

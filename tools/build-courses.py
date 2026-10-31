@@ -32,7 +32,7 @@ for name in ['1-2','1-3']:
    if t not in dynamic:scene.paste(tileImages[t],(tx*16,ty*16),tileImages[t])
  objects=[];metadata=[];unsupported=[];spawners=[]
  for o in src['objects']:
-  id=o['id'];kind={0x72:1,0x73:4,0x74:4,0x6c:2,0x6d:2,0x6e:5,0xa0:3,0xa4:3,0xa6:3}.get(id)
+  id=o['id'];kind={0x82:6,0x72:1,0x73:4,0x74:4,0x6c:2,0x6d:2,0x6e:5,0xa0:3,0xa4:3,0xa6:3}.get(id)
   if kind:
    objects.append([kind,o['x'],o['y']-208-(16 if kind in [2,5] else 0)]);metadata.append({'romId':id,'red':id==0x6d})
   elif id in [0xc0,0xc1]:spawners.append({'romId':id,'x':o['x'],'y':o['y']-208,'direction':1 if id==0xc1 else -1})

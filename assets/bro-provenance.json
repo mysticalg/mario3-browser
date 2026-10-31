@@ -1,0 +1,41 @@
+{
+  "romSHA256": "4377a7f5e6eb50bdd2ac6f249bf1a7085500aca8eb41f38545c3a2731c51a579",
+  "chrBank": 78,
+  "frames": [
+    [
+      177,
+      179,
+      181,
+      183
+    ],
+    [
+      177,
+      179,
+      165,
+      167
+    ],
+    [
+      189,
+      191,
+      181,
+      183
+    ],
+    [
+      189,
+      191,
+      165,
+      167
+    ]
+  ],
+  "broPaletteOffset": 224554,
+  "boomerangPaletteOffset": 224550,
+  "boomerangPatterns": [
+    139,
+    143,
+    137,
+    141,
+    139,
+    143
+  ],
+  "reference": "Southbird PRG004 ObjP82 / EnemyBro_DrawAndHandleBump and PRG007 Boomerang_Patterns"
+}
