@@ -244,7 +244,7 @@ test('plain green Piranha uses 48 ticks and does not spit',()=>{
 });
 test('plant shots use discrete ROM aiming and four hostile slots independent of Mario shots',()=>{
  const g=fixture(),e=g.enemies.find(e=>e.kind===3);e.y=120;
- Object.assign(g.player,{x:e.x-30,y:80});g.spitPlant(e);assert.deepEqual(g.enemyFireballs[0],{x:e.x+3,y:120,vx:-11/16,vy:-11/16});
+ Object.assign(g.player,{x:e.x-30,y:80});g.spitPlant(e);assert.deepEqual(g.enemyFireballs[0],{slot:0,x:e.x+3,y:120,vx:-11/16,vy:-11/16});
  Object.assign(g.player,{x:e.x+100,y:180});g.spitPlant(e);assert.equal(g.enemyFireballs[1].vx,14/16);assert.equal(g.enemyFireballs[1].vy,5/16);
  g.spitPlant(e);g.spitPlant(e);g.spitPlant(e);assert.equal(g.enemyFireballs.length,4);g.player.fire=true;assert.equal(g.throwFireball(),true);
 });
@@ -358,4 +358,34 @@ test('Fire Mario can defeat an original brother and cancel its held throw',()=>{
 test('original nine-byte random-pool rotation drives the brother hop gate',()=>{
  const g=new Game(plains3);g.randomize();assert.deepEqual([...g.randomPool],[0,128,0,0,0,0,0,0,0]);g.randomPool.fill(0);g.randomPool[0]=2;g.randomize();assert.equal(g.randomPool[0],129);
  const e=g.enemies.find(e=>e.kind===6);Object.assign(e,{broPhase:1,broTimer:30,vy:0});g.randomPool[e.broSlot+1]=128;g.frame=256;g.updateBro(e);assert.equal(e.vy,-3);e.vy=0;g.frame=257;g.updateBro(e);assert.equal(e.vy,0);
+});
+
+import {createMicro,stepMicro,initBomber,stepBomber} from '../microgoomba.js';
+test('Microgoomba states and fractional positions match all180 original-ROM frames',()=>{
+ const trace=JSON.parse(fs.readFileSync(new URL('../research/microgoomba-traces.json',import.meta.url))),m=createMicro(88,80),p={x:100,y:100,big:false,invul:0};
+ for(const r of trace.micro){const attached=stepMicro(m,p,r.t,!!r.press);for(const key of ['x','y','vx','vy','data','anim'])assert.equal(m[key],r[key],`frame${r.t} ${key}`);assert.equal(attached,r.attached);assert.equal((m.fx&15)*16,r.fx);assert.equal((m.fy&15)*16,r.fy);}
+});
+test('bomber physical states match all260 original-ROM flight and flutter frames',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.romId===0x74),trace=JSON.parse(fs.readFileSync(new URL('../research/microgoomba-traces.json',import.meta.url)));Object.assign(g.player,{x:1900,y:192});
+ for(const r of trace.bomber){stepBomber(e,g.player,g,()=>{});const actual={x:e.x,y:e.y+208,vx:(e.bombVx+256)%256,vy:(e.bombVy+256)%256,phase:e.bombPhase,timer:e.bombTimer,anim:e.bombAnim,wing:e.bombWing,turn:e.bombTurn,fx:(e.bombFX&15)*16,fy:(e.bombFY&15)*16};for(const key in actual)assert.equal(actual[key],r[key],`frame${r.t} ${key}`);}
+});
+test('bomber drops on32-tick phases and a stomp removes wings and stops its attack',()=>{
+ const g=new Game(plains3),e=g.enemies.find(e=>e.romId===0x74);g.enemies=[e];Object.assign(g.player,{x:1900,y:192});Object.assign(e,{bombPhase:2,bombTimer:100,bombAnim:31});g.updateEnemies(0);assert.equal(g.microgoombas.length,1);assert.ok(g.events.some(e=>e.type==='micro-dropped'));
+ Object.assign(e,{x:100,y:100,bombFX:1600,bombFY:1600,bombPhase:0,bombVx:0,bombVy:0});Object.assign(g.player,{x:100,y:87,vy:3});g.updateEnemies(99);assert.equal(e.kind,1);assert.equal(e.romId,0x72);
+});
+test('new button presses reduce grip while holding a button does not keep shaking',()=>{
+ const g=new Game(level);g.enemies=[];Object.assign(g.player,{x:24,y:192});const m=createMicro(24,192);m.data=5;g.microgoombas=[m];g.update({run:true});assert.equal(m.data,4);steps(g,6,{run:true});assert.equal(m.data,4);g.update();g.update({run:true});assert.equal(m.data,3);
+});
+test('attached Microgoombas slow Mario without causing suit loss and limit jump height',()=>{
+ const free=fixture(),stuck=fixture();const m=createMicro(24,192);m.data=5;stuck.microgoombas=[m];stuck.player.microCount=1;steps(free,24,{right:true,run:true});steps(stuck,24,{right:true,run:true});assert.ok(stuck.player.x<free.player.x-25);assert.ok(stuck.player.vx<=22/16);assert.equal(stuck.state,'playing');
+ const a=fixture(),b=fixture();const n=createMicro(24,192);n.data=5;b.microgoombas=[n];b.player.microCount=1;let ay=192,by=192;for(let i=0;i<50;i++){a.update({jump:true});b.update({jump:true});ay=Math.min(ay,a.player.y);by=Math.min(by,b.player.y);}assert.ok(by>ay+8);
+});
+test('Microgoomba grip recovers on16-tick cadence and five quick new presses shake it off',()=>{
+ const p={x:100,y:100,big:false},m=createMicro(100,100);m.data=2;stepMicro(m,p,16);assert.equal(m.data,3);m.data=5;for(let f=1;f<=5;f++)stepMicro(m,p,f,true);assert.equal(m.data,-1);assert.equal(m.vy,-32);
+});
+test('star power or water releases attached Microgoombas and paused games freeze them',()=>{
+ const p={x:100,y:100,big:false,star:true},m=createMicro(100,100);m.data=5;stepMicro(m,p,1);assert.equal(m.data,-1);const g=fixture();g.microgoombas=[createMicro(80,80)];g.paused=true;const before=JSON.stringify(g.microgoombas);steps(g,60);assert.equal(JSON.stringify(g.microgoombas),before);g.setCourse(hills);assert.equal(g.microgoombas.length,0);assert.equal(g.player.microCount,0);
+});
+test('plant fire, boomerangs and Microgoombas share native slot ranges',()=>{
+ const g=fixture();g.boomerangs=Array.from({length:4},(_,slot)=>({slot}));g.spitPlant(g.enemies.find(e=>e.kind===3));assert.equal(g.enemyFireballs.length,0);g.spawnMicro(100,100);assert.equal(g.microgoombas[0].slot,4);g.spawnMicro(100,100);g.spawnMicro(100,100);assert.equal(g.microgoombas.length,2);assert.equal(g.specialSlot(8),6);
 });

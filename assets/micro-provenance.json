@@ -1,0 +1,17 @@
+{
+  "romSHA256": "4377a7f5e6eb50bdd2ac6f249bf1a7085500aca8eb41f38545c3a2731c51a579",
+  "chrBank": 79,
+  "microPattern": 255,
+  "microPaletteOffset": 224558,
+  "wingPatterns": [
+    207,
+    205
+  ],
+  "wingPaletteOffset": 224554,
+  "wingOffsets": [
+    -2,
+    10
+  ],
+  "wingYOffset": -10,
+  "reference": "Southbird PRG004 ParaGoomba_Draw / PRG007 Microgoomba_Draw"
+}

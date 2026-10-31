@@ -328,14 +328,37 @@ try{
   await advance(2200);
   check('brother catches returning boomerang',(await snapshot()).events.some(e=>e.type==='boomerang-caught'));
 
+  await seed(()=>{window.__test.selectCourse('1-3');const g=window.__test.game;g.enemies.forEach(e=>{if(e.romId!==0x74)e.state=0;});Object.assign(g.player,{x:1900,y:192,vx:0,vy:0,invul:0});});await advance(2000);
+  check('original bomber takes flight and drops Microgoombas',(await snapshot()).enemies.some(e=>e.romId===0x74&&e.bombPhase===2)&&(await snapshot()).microgoombas.length>0);
+  await page.screenshot({path:path.join(output,'micro-bomber-flight.png'),fullPage:true});
+  await seed(()=>{const g=window.__test.game,m=g.microgoombas[0],p=g.player;Object.assign(m,{x:p.x-12,y:p.y-20,fx:(p.x-12)*16,fy:(p.y-20)*16,vx:0,vy:0,data:0,anim:0});});await advance(1000);
+  check('falling Microgoomba attaches without damaging Mario',(await snapshot()).player.microCount>0&&(await snapshot()).lives===3);
+  await page.screenshot({path:path.join(output,'micro-attached.png'),fullPage:true});
+  await page.keyboard.press('KeyP');const microBefore=JSON.stringify((await snapshot()).microgoombas);await advance(400);
+  check('pause freezes Microgoomba movement and grip',JSON.stringify((await snapshot()).microgoombas)===microBefore);await page.keyboard.press('KeyP');
+  for(let i=0;i<8;i++){await page.keyboard.down('ShiftLeft');await advance(17);await page.keyboard.up('ShiftLeft');await advance(17);}
+  check('new keyboard presses shake attached Microgoomba off',!(await snapshot()).microgoombas.some(m=>m.data>0));
+  await page.screenshot({path:path.join(output,'micro-shaken-off.png'),fullPage:true});
+
   await page.reload();await page.evaluate(()=>window.gameReady);
   check('course clear marker survives reload',await page.getByRole('button',{name:'✓ World 1-2',exact:true}).isVisible());
   await seed(()=>{window.__test.start(false);window.__test.game.state='complete';window.__pads=[{index:0,id:'Course progression test pad',mapping:'standard',connected:true,axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))}];});await advance(30);
   await seed(()=>window.__pads[0].buttons[0].pressed=true);await advance(30);
   check('controller A advances from a cleared course',(await snapshot()).course==='1-2');
+  await seed(()=>{const g=window.__test.game;g.enemies=[];g.microgoombas=[];g.spawnMicro(g.player.x,g.player.y);g.microgoombas[0].data=5;g.player.microCount=1;g.frame=1;window.__pads[0].buttons[0].pressed=false;});await advance(17);
+  await seed(()=>window.__pads[0].buttons[2].pressed=true);await advance(17);
+  check('gamepad new Run press reduces Microgoomba grip',(await snapshot()).microgoombas[0].data===4);
+  await advance(130);check('held gamepad button does not repeatedly shake',(await snapshot()).microgoombas[0].data===4);
   await mobile.getByRole('button',{name:'World 1-3',exact:true}).tap();await mobile.evaluate(()=>window.advanceTime(30));
   check('touch course selection opens World 1-3',(await mobile.evaluate(()=>JSON.parse(window.render_game_to_text()))).course==='1-3');
   await mobile.screenshot({path:path.join(output,'mobile-course-map.png'),fullPage:true});
+  await mobile.evaluate(()=>{const g=window.__test.game;g.enemies=[];g.microgoombas=[];g.spawnMicro(g.player.x,g.player.y);g.microgoombas[0].data=5;g.player.microCount=1;g.frame=1;});
+  const microRun=await mobile.locator('[data-control="run"]').boundingBox();
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:microRun.x+microRun.width/2,y:microRun.y+microRun.height/2,id:31}]});await mobile.evaluate(()=>window.advanceTime(17));
+  check('touch Run press reduces Microgoomba grip',await mobile.evaluate(()=>window.__test.game.microgoombas[0].data===4));
+  check('attached Microgoomba prompt fits the phone',await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await mobile.screenshot({path:path.join(output,'mobile-micro-attached.png'),fullPage:true});
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await mobile.evaluate(()=>window.advanceTime(17));
   check('no browser errors',errors.length===0);
   await fs.writeFile(path.join(output,'results.json'),JSON.stringify({url:base,passed:results.length,checks:results,errors},null,2));
   console.log(JSON.stringify({passed:results.length,errors,output}));

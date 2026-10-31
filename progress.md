@@ -211,3 +211,20 @@ of matching campaign RNG history.108 browser checks pass locally, including
 normal-update throws, pause and catch. Viewed throw/flight capture and original
 skill-client1-3 gameplay. Goal stays active: microgoombas, whistle/secret routes,
 full worldmap and later worlds and other native mechanics remain unfinished.
+
+0.13.0 continued reverse engineering: restored74 bomber cycle and Microgoombas.
+PRG004 flutter/fly/drop and PRG007 drift/attach/shake/dead routines implemented
+in microgoomba.js using4.4 raw state. Original PRG008 uphill override tables
+supply per-attached-count speed cap and upward-velocity cutoff. Pad_Input is
+newly pressed only (smb3.asm), so added six-control edge mask rather than using
+held input. Grip recovers16 ticks max5; detach keeps native fractional residue.
+Native trace tool B5C0 / AF73 yields180 Micro and260 bomber frames; all captured
+motion/phase/velocity/fraction fields match. Exported CHR79 MicroFF and CD/CF
+wing frames, native20px wing positions and depth bit for attached child. Shared
+native special slots now tracked across plant fire/boomerangs/Micros. Stomp74
+converts to72 with normal ground speed and ends attack. Pause/course/area/death
+clear or freeze child state; player count resets.104 gameplay+6 decoder tests
+and116 browser checks pass locally; keyboard/gamepad/touch new-vs-held shaking
+verified. Inspected flight/attached/shaken and mobile hint captures and original
+skill-client1-3 gameplay. Full objective remains active: whistle/secret routes,
+full worldmap/later worlds and remaining native mechanics are unfinished.

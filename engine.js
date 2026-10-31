@@ -1,4 +1,5 @@
-import {createBoomerang,stepBoomerang} from './boomerang.js?v=0.12.0';
+import {createMicro,stepMicro,initBomber,stepBomber} from './microgoomba.js?v=0.13.0';
+import {createBoomerang,stepBoomerang} from './boomerang.js?v=0.13.0';
 // A fixed 60 Hz simulation, with presentation interpolation between ticks.
 export const STEP_MS = 1000 / 60;
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -16,7 +17,7 @@ export class Game {
     this.reset();
   }
   createEnemies(level) {
-    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};return {kind,x,y,baseY:y,vx:[1,2].includes(kind)?-.5:-.65,vy:0,state:1,h:[2,5,6].includes(kind)?32:16,cooldown:0,...meta,...(kind===6?{vx:0,facing:'left',broPhase:0,broSlot:i%5,broTimer:0,broCounter:0,broAnim:0,throwPose:0}:{}),...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};});
+    return level.objects.map(([kind,x,y],i)=>{const meta=level.objectMetadata?.[i]||{};const enemy={kind,x,y,baseY:y,vx:[1,2].includes(kind)?-.5:-.65,vy:0,state:1,h:[2,5,6].includes(kind)?32:16,cooldown:0,...meta,...(kind===6?{vx:0,facing:'left',broPhase:0,broSlot:i%5,broTimer:0,broCounter:0,broAnim:0,throwPose:0}:{}),...(kind===3&&meta.romId?{x:x+8,h:0,plantPhase:0,plantTimer:0,plantAnim:0,rise:0,maxRise:(meta.romId&2)?33:25,plantRed:!!(meta.romId&2),spits:meta.romId>=0xa4}:{} )};if(kind===4&&meta.romId===0x74)initBomber(enemy);return enemy;});
   }
   createSpawners(level){return (level.spawners||[]).map(s=>({...s,active:false,timer:96,cycle:0}));}
   setCourse(level,preserve=true){
@@ -40,7 +41,7 @@ export class Game {
     Object.assign(this.player,this.level.spawn||{});
     this.state = 'playing';
     this.player.carrying=-1;this.player.runHeld=false;
-    Object.assign(this.player,{raccoon:false,fire:false,firing:0,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false});
+    Object.assign(this.player,{raccoon:false,fire:false,firing:0,powerMeter:0,flight:0,wag:0,tail:0,oldRun:false,microCount:0,microButtons:0});
     this.deathClock = 0;
     this.winClock = 0;
     this.clock = 300;
@@ -53,7 +54,7 @@ export class Game {
     this.effects = [];
     this.bumps = new Map();
     this.sky=new Map((this.level.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));this.transition=null;
-    this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
+    this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];this.microgoombas=[];if(this.player)this.player.microCount=0;
   }
   get areaWidth(){return this.activeLevel.playableWidth||2816;}
   switchArea(name){
@@ -67,7 +68,7 @@ export class Game {
       this.collectibles=l.coins.map(([x,y])=>({x,y,got:false}));this.enemies=this.createEnemies(l);this.spawners=this.createSpawners(l);
       this.power=null;this.sky=new Map((l.sky||[]).map(t=>[`${t.tx},${t.ty}`,{...t}]));
     }
-    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
+    this.effects=[];this.bumps=new Map();this.popup=null;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];this.microgoombas=[];if(this.player)this.player.microCount=0;
   }
   tryPipe(input){
     const p=this.player;if(p.carrying>=0)return false;
@@ -218,7 +219,7 @@ export class Game {
     const p=this.player;
     if(p.carrying>=0)this.releaseShell();
     if(p.big){if(p.h===32)p.y+=16;p.h=16;p.big=false;p.crouched=false;}
-    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];
+    p.raccoon=false;p.fire=false;p.firing=0;p.flight=0;p.tail=0;p.powerMeter=0;this.fireballs=[];this.enemyFireballs=[];this.boomerangs=[];this.microgoombas=[];if(this.player)this.player.microCount=0;
     this.state='dying';this.deathClock=0;p.vy=-5.5;p.vx=0;p.grounded=false;p.skidding=false;p.coyote=0;p.jumpBuffer=0;this.sound('death');this.event('life-lost');
   }
   updatePower() {
@@ -283,9 +284,9 @@ export class Game {
     this.fireballs=this.fireballs.filter(b=>!b.dead);
   }
   spitPlant(e) {
-    if(this.enemyFireballs.length>=4)return;
+    const slot=this.specialSlot(4);if(slot<0)return;
     const p=this.player,close=Math.abs(p.x-e.x)<80;
-    this.enemyFireballs.push({x:e.x+3,y:e.y,vx:(p.x<e.x?-1:1)*(close?11:14)/16,vy:(p.y<e.y?-1:1)*(close?11:5)/16});
+    this.enemyFireballs.push({slot,x:e.x+3,y:e.y,vx:(p.x<e.x?-1:1)*(close?11:14)/16,vy:(p.y<e.y?-1:1)*(close?11:5)/16});
     this.event('plant-fired');
   }
   updatePlant(e) {
@@ -310,6 +311,19 @@ export class Game {
     }
     this.enemyFireballs=this.enemyFireballs.filter(b=>!b.dead);
   }
+  specialSlot(limit){
+    const all=[...this.enemyFireballs,...this.boomerangs,...this.microgoombas],used=new Set(all.map((b,i)=>b.slot??i));
+    for(let i=0;i<limit;i++)if(!used.has(i))return i;return -1;
+  }
+  spawnMicro(x,y){const slot=this.specialSlot(6);if(slot<0)return;this.microgoombas.push(createMicro(x,y,slot));this.event('micro-dropped');}
+  updateMicrogoombas(){
+    const p=this.player;let count=0;
+    for(const m of this.microgoombas){const old=m.data;count+=stepMicro(m,p,this.frame,!!this.microPress,this.randomPool[m.slot+1]);
+      if(old===0&&m.data>0)this.event('micro-attached');if(old>0&&m.data<0)this.event('micro-shaken-off');
+      if(m.x<this.camera-32||m.x>this.camera+352||m.y<this.cameraY-48||m.y>this.cameraY+272)m.dead=true;
+    }
+    this.microgoombas=this.microgoombas.filter(m=>!m.dead);p.microCount=count;
+  }
   randomize(){
     let carry=((this.randomPool[0]^this.randomPool[1])&2)?1:0;
     for(let i=0;i<9;i++){const next=this.randomPool[i]&1;this.randomPool[i]=(this.randomPool[i]>>1)|(carry<<7);carry=next;}
@@ -324,7 +338,7 @@ export class Game {
     const old=e.broCounter;e.broCounter=(old+1)&255;
     if((old&0xbf)===0x1f){
       e.throwPose=15;
-      if(this.boomerangs.length+this.enemyFireballs.length<8){const used=new Set(this.boomerangs.map(b=>b.slot));let slot=0;while(used.has(slot))slot++;this.boomerangs.push(createBoomerang(e,slot));this.event('boomerang-thrown');}
+      const slot=this.specialSlot(8);if(slot>=0){this.boomerangs.push(createBoomerang(e,slot));this.event('boomerang-thrown');}
     }
   }
   updateBoomerangs(){
@@ -377,7 +391,8 @@ export class Game {
       if(e.state<=0||Math.abs(e.x-p.x)>=360)continue;
       if(e.cooldown>0)e.cooldown--;
       if(p.raccoon&&p.tail>4&&e.kind!==3&&e.state>0&&Math.abs(e.x-p.x)<30&&Math.abs(e.y+e.h/2-p.y-p.h/2)<23){e.state=-14;this.score+=100;this.sound('kick');this.event('tail-hit');continue;}
-      if(e.kind===3&&e.plantPhase!==undefined){this.updatePlant(e);}
+      if(e.kind===4&&e.romId===0x74){stepBomber(e,p,this,(x,y)=>this.spawnMicro(x,y));}
+      else if(e.kind===3&&e.plantPhase!==undefined){this.updatePlant(e);}
       else if(e.kind===3){
         const phase=(this.frame+i*19)%180;
         let rise=Math.floor(clamp(Math.min(phase-35,145-phase)*1.5,0,32));
@@ -407,7 +422,7 @@ export class Game {
         if(e.kind===3)this.hurt();
         else if(previousBottom<=e.y+7&&p.vy>0){
           p.y=e.y-p.h;p.vy=p.oldJump?-6.8:-4.7;p.grounded=false;p.coyote=0;const points=[100,200,400,800,1000,2000,4000,8000][Math.min(this.stompChain++,7)];this.score+=points;this.pop(e.x,e.y-10,String(points));this.sound('stomp');
-          if(e.kind===4)e.kind=1;
+          if(e.kind===4){e.kind=1;e.romId=0x72;e.vx=e.vx<0?-.5:.5;}
           else if(e.kind===5)e.kind=2;
           else if(e.kind===2){
             if(e.state===1){e.state=2;e.y+=16;e.h=16;e.cooldown=15;e.wake=255;}
@@ -462,6 +477,8 @@ export class Game {
     const controls=this.auto?this.automaticInput():input;
     const {left=false,right=false,jump=false,run=false,down=false}=controls;
     const p=this.player;this.frame++;this.randomize();
+    const held=Number(left)|Number(right)<<1|Number(jump)<<2|Number(run)<<3|Number(down)<<4|Number(!!controls.up)<<5;
+    this.microPress=held&~p.microButtons;p.microButtons=held;
     if(this.state==='pipe'){this.updatePipe();return;}
     this.updateEffects();
     if(this.popup&&--this.popup.ticks<=0)this.popup=null;
@@ -497,7 +514,7 @@ export class Game {
       if(down&&p.h===32){p.y+=16;p.h=16;p.crouched=true;}
       if(!down&&p.h===16&&!this.wall(p.x,p.y-16,32)){p.y-=16;p.h=32;p.crouched=false;}
     }
-    const speed=p.crouched?0:run?3.6:2.4;
+    const speed=p.crouched?0:p.microCount>0?(23-Math.min(p.microCount,6))/16:run?3.6:2.4;
     const direction=Number(right)-Number(left);
     p.skidding=p.grounded&&direction!==0&&p.vx*direction<-.35;
     const acceleration=p.skidding?.34:.2;
@@ -523,7 +540,7 @@ export class Game {
     if(this.moveX(p,p.vx))p.vx=0;
     p.x=clamp(p.x,0,this.areaWidth-36);
     const previousBottom=p.y+p.h,wasGrounded=p.grounded;
-    p.vy=Math.min(p.vy+.3,7);let ny=p.y+p.vy;p.grounded=false;
+    p.vy=Math.min(p.vy+.3,7);if(p.microCount>0&&p.vy<0&&p.vy>[-3,-3.125,-3.25,-3.375][Math.min(3,p.microCount>>1)])p.vy=2;let ny=p.y+p.vy;p.grounded=false;
     if(p.vy>=0&&this.floor(p.x,previousBottom,ny+p.h+(this.activeLevel.slopes&&wasGrounded?6:0),this.activeLevel.slopes&&wasGrounded?6:0)){ny=this.floorY-p.h;p.vy=0;p.grounded=true;this.stompChain=0;}
     if(p.vy<0&&(this.hard(p.x+2,ny)||this.hard(p.x+13,ny))){
       const ty=Math.floor(ny/16);let tx=Math.floor((p.x+8)/16);
@@ -536,7 +553,7 @@ export class Game {
     if(this.tryPipe(controls))return;
     if(p.y>264){this.die();return;}
     for(const c of this.collectibles)if(!c.got&&Math.abs(p.x+8-c.x-8)<13&&p.y<c.y+16&&p.y+p.h>c.y){c.got=true;this.coin(50);this.event('coin');}
-    this.updatePower();this.updateEnemies(previousBottom);this.updateSpawners();this.updateEnemyFireballs();this.updateBoomerangs();p.travel+=Math.abs(p.vx);
+    this.updatePower();this.updateEnemies(previousBottom);this.updateSpawners();this.updateEnemyFireballs();this.updateBoomerangs();this.updateMicrogoombas();p.travel+=Math.abs(p.vx);
     if(this.area==='main'&&p.x+14>this.goal.x-8&&p.x<this.goal.x+24&&p.y<this.goal.y+32&&p.y+p.h>this.goal.y-8){
       this.state='complete';this.winClock=0;this.card=Math.floor(this.frame/8)%3;this.score+=this.clock*10;this.sound('clear');this.event('course-clear');
     }
@@ -552,7 +569,7 @@ export class Game {
       player:{...p},score:this.score,coins:this.coins,lives:this.lives,time:this.clock,
       enemies:this.enemies.filter(e=>e.state!==0&&near(e)).map(e=>({...e})),
       coinsVisible:this.collectibles.filter(c=>!c.got&&near(c)),power:this.power,
-      course:this.course,spawners:this.spawners.map(s=>({...s})),goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),boomerangs:this.boomerangs.map(({owner,...b})=>({...b,ownerX:owner.x,ownerY:owner.y})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
+      course:this.course,spawners:this.spawners.map(s=>({...s})),goal:this.area==='main'?this.goal:null,pipes:this.activeLevel.pipes||[],fireballs:this.fireballs.map(b=>({...b})),enemyFireballs:this.enemyFireballs.map(b=>({...b})),microgoombas:this.microgoombas.map(m=>({...m})),boomerangs:this.boomerangs.map(({owner,...b})=>({...b,ownerX:owner.x,ownerY:owner.y})),effects:this.effects.map(e=>({...e})),events:this.events.slice(-5)
     };
   }
 }

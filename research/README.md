@@ -77,3 +77,19 @@ The pure4.4 fixed-point module is tested against every captured flight position,
 fraction, velocity, timer and phase through the original catch frame166. These
 isolated fixtures verify the named routines; they do not establish identical RNG
 history or cycle-exact behaviour for an entire played campaign.
+
+Micro-Goomba research: `microgoomba-traces.json` contains180 original B5C0 special
+object states, including free drift, attachment, five new A presses and the
+flop-off arc. It also contains260 successive original AF73 bomber states using
+the decoded1-3 TileRAM and a fixed player. Reproduce:
+
+```
+node tools/trace-rom-micro.mjs your-rom.nes research/microgoomba-traces.json
+```
+
+The fixtures keep player coordinates fixed and explicitly set each Counter1/
+Pad_Input sample. Tests compare every captured position, fractional accumulator,
+velocity, phase/timer and relevant animation/grip count. They verify these
+isolated routines, not the entire campaign's RNG or timing. Star/water release
+branches are retained/tested in the module; full star/swimming gameplay is not
+yet implemented.

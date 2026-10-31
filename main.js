@@ -1,10 +1,10 @@
-import {VisualEffects} from './effects.js?v=0.12.0';
-import {Parallax} from './parallax.js?v=0.12.0';
-import {GameAudio} from './audio.js?v=0.12.0';
-import {Game,STEP_MS,clamp} from './engine.js?v=0.12.0';
-import {ControllerInput} from './input.js?v=0.12.0';
-import {pixelText} from './pixel-font.js?v=0.12.0';
-const VERSION='0.12.0';
+import {VisualEffects} from './effects.js?v=0.13.0';
+import {Parallax} from './parallax.js?v=0.13.0';
+import {GameAudio} from './audio.js?v=0.13.0';
+import {Game,STEP_MS,clamp} from './engine.js?v=0.13.0';
+import {ControllerInput} from './input.js?v=0.13.0';
+import {pixelText} from './pixel-font.js?v=0.13.0';
+const VERSION='0.13.0';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game'),ctx=canvas.getContext('2d',{alpha:false});
@@ -16,7 +16,7 @@ const touchControls=document.querySelector('.touch-controls');
 const touchHome=document.createComment('touch-controls-home');touchControls.before(touchHome);
 let game,world,atlas,started=false,soundOn=true,audio=new GameAudio(),manualStepping=false,accumulator=0,lastTime=0;
 let padState=null,controllerLabel='';
-let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles,fireArt,flowerArt,ballArt,poofArt,broArt,boomerangArt;
+let previousVisual=null,lastPresentation=null,uiStamp='',raccoonArt,leafArt,parallax,renderCameraY=0,bonusWorld,bonusTiles,skyTiles,fireArt,flowerArt,ballArt,poofArt,broArt,boomerangArt,microArt,bomberWings;
 const dynamicCells=new Set();
 const courses=new Map();const cleared=new Set(JSON.parse(localStorage.getItem('mario3-cleared')||'[]'));let miniStamp='';
 const testMode=new URLSearchParams(location.search).has('test');
@@ -117,6 +117,9 @@ function drawPlant(id,x,y,e){
   ctx.drawImage(atlas,sx,sy,16,16,0,0,16,16);ctx.restore();
   ctx.drawImage(atlas,sx,sy+16,16,16,0,16,16,16);ctx.restore();
 }
+function drawMicro(m,cam){
+  const flip=m.data>=0&&(game.frame&8);ctx.save();ctx.translate(Math.round(m.x-cam+(flip?8:0)),Math.round(m.y+(m.data<0?16:0)));ctx.scale(flip?-1:1,m.data<0?-1:1);ctx.drawImage(microArt,0,0);ctx.restore();
+}
 function drawFirePlayer(id,x,y,h=32){ctx.drawImage(fireArt,(id%32)*16,Math.floor(id/32)*32,16,h,Math.round(x),Math.round(y),16,h);}
 function drawRaccoon(x,y,p){
   let pose=p.grounded?Math.floor(p.travel/6)%3:3;
@@ -153,6 +156,7 @@ function render(alpha=1){
     ctx.save();
     if(e.pipeTicks>0){ctx.beginPath();const mouth=e.pipeMouth-cam;ctx.rect(e.pipeDirection>0?mouth:0,-512,e.pipeDirection>0?320-mouth:mouth,1024);ctx.clip();}
     let id=272+(e.pipeTicks>0?Math.floor((40-e.pipeTicks)/4)%2:Math.floor(game.frame/8)%2),h=16;
+    if(e.kind===4&&e.romId===0x74)id=272+((e.bombAnim&8)?1:0);
     if([2,5,6].includes(e.kind)){id=e.vx>0?285:284;h=32;}
     if(e.kind===3){id=e.plantPhase===undefined?283:311+(e.spits?(e.plantRed?4:2):0)+Math.floor((e.plantAnim||0)/8)%2;h=e.h;}
     if(e.state===2||e.state===3){id=286;h=16;}
@@ -164,7 +168,7 @@ function render(alpha=1){
     else if(e.deathStyle==='tumble'&&e.state<0){ctx.save();ctx.translate(Math.round(ex-cam),Math.round(ey+h));ctx.scale(1,-1);ctx.drawImage(atlas,(id%32)*16,Math.floor(id/32)*32,16,h,0,0,16,h);ctx.restore();}
     else if(e.kind===3&&e.plantPhase!==undefined)drawPlant(id,ex-cam,ey,e);
     else actor(id,ex-cam+shake,ey,h);
-    if(e.kind===4&&e.state>0)drawSprite(287,ex-cam,ey-6,16);
+    if(e.kind===4&&e.state>0){if(e.romId===0x74)ctx.drawImage(bomberWings,(e.bombWing&8)?20:0,0,20,16,Math.round(ex-cam-2),Math.round(ey-10),20,16);else drawSprite(287,ex-cam,ey-6,16);}
     ctx.restore();
   }
   if(game.power){
@@ -183,6 +187,7 @@ function render(alpha=1){
   for(const b of game.boomerangs){
     const pose=(b.age&12)>>2;ctx.save();ctx.translate(Math.round(b.x-cam+(b.vx>=0?0:16)),Math.round(b.y));if(b.vx<0)ctx.scale(-1,1);ctx.drawImage(boomerangArt,pose*16,0,16,16,0,0,16,16);ctx.restore();
   }
+  for(const m of game.microgoombas)if(!(m.data>0&&(((m.slot<<4)^m.anim)&16)))drawMicro(m,cam);
   for(const effect of game.effects){
     if(effect.kind==='coin')drawSprite(276+Math.floor(game.frame/4)%4,effect.x-cam,effect.y);
     if(effect.kind==='brick'){
@@ -212,6 +217,7 @@ function render(alpha=1){
     else actor(playerId,px-cam,drawY,drawHeight);
   }
   ctx.restore();
+  for(const m of game.microgoombas)if(m.data>0&&(((m.slot<<4)^m.anim)&16))drawMicro(m,cam);
   if(game.state!=='complete'&&game.area==='main')drawSprite(280+Math.floor(game.frame/8)%3,game.goal.x-cam,game.goal.y);
   fx.foreground(ctx,cam);
   if(game.popup)text(game.popup.text,Math.floor(game.popup.x-cam),Math.floor(game.popup.y),7,'#fcfcfc','left',true);
@@ -233,7 +239,7 @@ function syncUI(){
   if(!game)return;
   if(game.state==='complete'&&!cleared.has(game.course)){cleared.add(game.course);localStorage.setItem('mario3-cleared',JSON.stringify([...cleared]));}
   minimap();
-  const stamp=[started,game.course,game.state,game.area,game.paused,game.auto,game.score,game.coins].join('|');
+  const stamp=[started,game.course,game.state,game.area,game.paused,game.auto,game.score,game.coins,game.player.microCount].join('|');
   if(stamp===uiStamp)return;
   uiStamp=stamp;
   const end=['complete','gameover'].includes(game.state);
@@ -254,7 +260,7 @@ function syncUI(){
     $('pause-description').textContent='Your adventure is right where you left it.';
     $('resume-btn').textContent='Resume game';$('menu-restart-btn').textContent='Start again';
   }
-  $('mode-status').textContent=!started?'Ready to play':game.paused?'Paused':game.auto?'Protected preview · move to play':game.state==='complete'?'Course complete':game.state==='gameover'?'Game over':game.state==='pipe'?'Travelling through pipe':game.area==='bonus'?'Bonus room · jump up into exit pipe':'Playing';
+  $('mode-status').textContent=!started?'Ready to play':game.paused?'Paused':game.auto?'Protected preview · move to play':game.state==='complete'?'Course complete':game.state==='gameover'?'Game over':game.state==='pipe'?'Travelling through pipe':game.area==='bonus'?'Bonus room · jump up into exit pipe':game.player.microCount>0?'Micro-Goomba! Tap buttons to shake off':'Playing';
 }
 const actionKeys=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyS','KeyW','Space','KeyZ','KeyX','ShiftLeft','ShiftRight']);
 window.addEventListener('keydown',event=>{
@@ -334,9 +340,9 @@ window.advanceTime=ms=>{
 window.render_game_to_text=()=>JSON.stringify(game?{...game.snapshot(),parallax:parallax?.snapshot(),fx:fx.snapshot(),audio:audio.snapshot(),screen:!started?'menu':game.paused?'paused':game.state,controller:padState?{connected:true,id:padState.id,controls:padState}:null}:{screen:'loading'});
 function loadImage(name){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error(`Could not load ${name}`));const url=new URL(`./assets/${name}`,import.meta.url);url.searchParams.set('v',VERSION);im.src=url;});}
 window.gameReady=Promise.all([
-  fetch(new URL('./assets/level.json?v=0.12.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png'),loadImage('bros.png'),loadImage('boomerang.png')
-]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof,bro,boomerang])=>{
-  broArt=bro;boomerangArt=boomerang;fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
+  fetch(new URL('./assets/level.json?v=0.13.0',import.meta.url)).then(r=>{if(!r.ok)throw Error('Could not load level data');return r.json();}),loadImage('world.png'),loadImage('sprites.png'),loadImage('raccoon.png'),loadImage('leaf.png'),loadImage('parallax-sky.png'),loadImage('parallax-hills.png'),loadImage('parallax-forest.png'),loadImage('bonus-world.png'),loadImage('bonus-tiles.png'),loadImage('fire-player.png'),loadImage('flower.png'),loadImage('fireball.png'),loadImage('fire-poof.png'),loadImage('bros.png'),loadImage('boomerang.png'),loadImage('microgoomba.png'),loadImage('bomber-wings.png')
+]).then(([level,background,sprites,raccoon,leaf,skyLayer,hillsLayer,forestLayer,room,roomTiles,fire,flower,ball,poof,bro,boomerang,micro,wings])=>{
+  microArt=micro;bomberWings=wings;broArt=bro;boomerangArt=boomerang;fireArt=fire;flowerArt=flower;ballArt=ball;poofArt=poof;
   bonusWorld=room;bonusTiles=roomTiles;const layers=[skyLayer,hillsLayer,forestLayer];
   raccoonArt=raccoon;leafArt=leaf;parallax=new Parallax(layers);
   const scenery=document.createElement('canvas');scenery.width=4096;scenery.height=256;

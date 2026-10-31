@@ -390,3 +390,34 @@ plus6 decoder checks (102 total),108 browser checks, inspected original-art
 throw/flight screenshot and the unmodified skill client's World1-3 gameplay.
 Whistle/secret routes, microgoomba attacks, later worlds, full original map and
 other remaining mechanics are still unfinished.
+
+## 0.13.0 Micro-Goomba bomber attacks
+
+The74 Para-Goombas in World1-2/1-3 now flutter down, fly above Mario and drop
+Micro-Goombas on their original32-tick drop phase. Their16px body,4.4 motion,
+three attack phases,128-tick timers, horizontal acceleration/turning and animated
+wing timing follow PRG004. Source-derived parent motion matches all260 frames
+of the isolated original-ROM fixture using World1-3 terrain.
+
+Micro-Goombas drift down, attach without suit damage, reduce movement speed and
+shorten jumps. New button presses reduce grip; holding a button does not keep
+shaking. Grip recovers every16 ticks, up to5. Shaking one off makes it tumble
+away. Their attached position/fractional state and detach movement match all180
+captured original-ROM fixture frames, including five input presses. Original
+CHR79 supplies the Micro-Goomba and both20px wing poses. Attached sprites switch
+draw depth around Mario according to the original animation bit. A short prompt
+explains shaking them off. Pause and area/course changes freeze/clear them.
+
+Micro-Goombas, plant fire and boomerangs now share explicit original special
+slots: plants search0-3, Micro-Goombas0-5 and boomerangs0-7. Stomping a bomber
+changes it to an ordinary Goomba and stops future drops. Reproduce research with
+`node tools/trace-rom-micro.mjs your-rom.nes`; export graphics with
+`python tools/export-micro-assets.py your-rom.nes FCEUX.pal`.
+
+Validation:104 gameplay plus6 decoder checks (110 total),116 browser checks.
+These cover exact isolated ROM fixture states, parent drops/stomp conversion,
+movement penalties, fresh-input shaking and grip regeneration, pool sharing,
+pause/reset and keyboard/gamepad/real-touch input. Reviewed parent-flight,
+attached/shaken-off and phone prompt screenshots plus skill-client gameplay.
+Full campaign RNG/timing, whistle/secret routes, later worlds, original map and
+remaining mechanics still require reconstruction.
