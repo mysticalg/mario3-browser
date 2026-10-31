@@ -146,3 +146,18 @@ plant timing, because neutral airborne input preserves momentum. 73 engine and
 Inspected Venus shot, green variants and unmodified skill-client gameplay captures.
 Remaining: full terrain decoder integration, hill slopes, additional levels/map,
 other enemy families and game mechanics. Goal remains active.
+
+Terrain decoder research: promoted the original-6502 extraction experiment into
+reusable tools/decode-rom-levels.mjs, with revision gate, bounded execution,
+course presets, raw object IDs, tile-RAM hashes and rendering metadata. Extracted
+1-1/1-2/1-3 (6480 bytes each) into research/levels, plus original-art PNG previews.
+Recovered 21 original slope profiles, tile mappings and player velocity effects
+from PRG000. Added repeat-decoding verifier and independent comparison with the
+private original-ROM runtime state: 6424 exact bytes and56 random decorative
+cloud differences, zero other terrain differences. Source enum mismatch in1-2
+(C1 actual versus BC source) is preserved explicitly, not guessed. Six decoder
+checks plus73 gameplay checks pass (79 total). Viewed1-1 full map,1-2 hills start
+and1-3 start previews. Runtime remains0.9.0; these new courses are research data,
+not exposed as playable until slope collision/objects/pipes are implemented.
+Goal remains active. Next: integrate original slope height profiles and verify
+movement against original-ROM trajectories before enabling1-2.

@@ -6,7 +6,7 @@
   "description": "Browser port of the native RISC OS SMB3 prototype",
   "scripts": {
     "start": "node serve.mjs",
-    "test": "node --test tests/engine.test.mjs",
+    "test": "node --test tests/engine.test.mjs tests/decoder.test.mjs",
     "test:browser": "node tests/browser.mjs"
   },
   "devDependencies": {

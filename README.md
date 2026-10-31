@@ -296,3 +296,13 @@ rather than merely releasing Right. Validation: 73 engine tests, 92 browser
 checks, original skill client gameplay and inspected plant/fireball screenshots.
 This remains a reconstruction; additional levels, slopes, map and other enemy
 families are still unfinished.
+
+## Original level decoder research
+
+The offline original-6502 decoder now extracts World 1-1, 1-2 and 1-3, including
+hills geometry and original slope profiles. See [research documentation](research/README.md)
+for reproducible tools, previews and validation. New courses are research data;
+the playable browser course remains World 1-1 while slope physics and additional
+object routines are reconstructed. The test suite now has73 gameplay and6 decoder
+checks. The World1-1 extract independently matches original runtime tile RAM
+except56 decorative random-cloud differences.

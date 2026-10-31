@@ -1,0 +1,34 @@
+{
+  "courses": [
+    {
+      "course": "1-1",
+      "reproduced": true,
+      "tiles": 6480,
+      "objects": 15,
+      "tileRAMSHA256": "c959e65f09d61946159065a13502c2c24ff518bcdd74195b5a66e0d660e5d8b3"
+    },
+    {
+      "course": "1-2",
+      "reproduced": true,
+      "tiles": 6480,
+      "objects": 16,
+      "tileRAMSHA256": "9f003a7a8e81c8494d66b80a29a8dae8d60d52a3df83c31006a209971747f94e"
+    },
+    {
+      "course": "1-3",
+      "reproduced": true,
+      "tiles": 6480,
+      "objects": 15,
+      "tileRAMSHA256": "535e00b3d84d271dd8bcf1724b192b6ac8db3e83da621e6921c5265b1f6cd7bc"
+    }
+  ],
+  "slopeProfiles": 21,
+  "independentRuntimeComparison": {
+    "course": "1-1",
+    "stateSHA256": "6efb692cfe31d26bd4cf648c1518e59e8da50a809440260e9745c4a5fb4882b3",
+    "exact": 6424,
+    "randomCloudDifferences": 56,
+    "unexpectedDifferences": 0,
+    "note": "Only decorative random-cloud tiles 10/11/12 versus sky80 are excluded; actual played run uses a different RNG state."
+  }
+}
